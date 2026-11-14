@@ -5,7 +5,13 @@ Partyspiel für 1–8 Spieler an einem Gerät: Ein Produkt wird ohne Preis gezei
 ## Starten
 `index.html` im Browser öffnen. Kein Server, keine Installation.
 
-## Produkte
+## Eigene Produkte mit Foto und Link
+Im Setup unter „Eigene Produkte verwalten“: Produktbild auf Amazon kopieren und einfügen (Strg+V), hochladen oder hineinziehen, dann Link und Preis eintragen. Die Produkte werden nur im Browser dieses Geräts gespeichert.
+
+## Ergebnisbild
+Nach jeder Runde entsteht ein Bild (1080 × 1350) mit Produktfoto, echtem Preis, allen Tipps, Link und QR-Code zum Artikel. Es lässt sich speichern, kopieren oder (auf dem Handy) teilen. Am Ende stehen alle Bilder und Links in einer Übersicht.
+
+## Standard-Produktliste
 Die Produkte stehen als Liste `PRODUCTS` oben im `<script>` von `index.html` (Emoji, Kategorie, Name, Beschreibung, Preis in €).
 Die Preise sind Richtwerte und veralten. Nach jeder Runde gibt es einen Link, um den aktuellen Preis auf amazon.de nachzuschlagen.
 
