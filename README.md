@@ -23,3 +23,28 @@ Die Vorschau auf claude.ai kann diesen Modus nicht nutzen (die Plattform sperrt 
 ## Warum nicht Amazon oder Idealo?
 - Amazon: Die Product Advertising API wurde 2026 durch die Creators API ersetzt. Zugang nur mit Amazon-Partnerprogramm-Konto, das echte Verkäufe nachweisen muss. Scraping verstößt gegen die Nutzungsbedingungen.
 - Idealo: keine öffentliche Schnittstelle zum Lesen von Preisen, nur Händler-Schnittstellen zum Hochladen.
+
+---
+
+# Keine Ahnung!
+
+Zweites Spiel im selben Repo: eine Quizshow mit skurrilen, wahren Fakten aus aller Welt und einem bissigen Kommentator („Kalle aus dem Off“). Für 1–4 Spieler an einem Gerät.
+
+## Starten
+`quiz.html` im Browser öffnen. Kein Server, keine Installation.
+
+## Spielmodi
+- **Die große Show**: 10 Fragen mit vier Antworten, steigende Einsätze, falsche Antworten kosten Punkte.
+- **Wahr oder Quatsch**: 12 Behauptungen im Schnelldurchlauf.
+- **Schätz-Duell**: 6 Zahlenfragen, jeder tippt geheim, der nächste Tipp gewinnt.
+- **Bis einer heult**: drei Leben, gemischte Fragen, bis nur noch einer steht. Allein mit Bestwert.
+
+Bei mehreren Spielern wird gebuzzert: Tasten Q, P, X, M oder den eigenen Buzzer antippen. Antworten per Klick oder mit den Tasten 1–4.
+
+## Kommentator
+Der Text steht in der Sprechblase. Die Stimme kommt aus der Sprachausgabe des Browsers (deutsche Systemstimme) und lässt sich oben abschalten.
+
+## Fragen ergänzen
+Die Fragen stehen oben im `<script>` von `quiz.html` in drei Listen: `MC` (richtige Antwort immer an erster Stelle, gemischt wird beim Spielen), `TF` (wahr/Quatsch) und `EST` (Schätzfragen mit Zielwert und Toleranz). Jede Frage hat eine Auflösung `f`, die der Kommentator vorliest.
+
+Die Fakten sind aus dem Gedächtnis zusammengestellt und nicht einzeln gegen Quellen geprüft.

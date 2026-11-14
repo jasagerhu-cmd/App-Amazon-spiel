@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Keine Ahnung!</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Figtree:wght@400;500;600;800&display=swap">
+<style>
+/* Layout: eine Showbühne (max 720px). Oben der Kommentator mit Sprechblase, darunter Punktetafel und die Frage als Bühnenkarte. Bewusst nur ein Look: abgedunkeltes Fernsehstudio. */
+:root {
+  color-scheme: dark;
+  --bg: #23103a;
+  --stage: #33195a;
+  --stage-2: #40216e;
+  --ink: #fff4e0;
+  --muted: #cdb9e6;
+  --line: #5b3a8a;
+  --gold: #ffc93c;
+  --gold-ink: #2b1a00;
+  --hot: #ff6a55;
+  --hot-ink: #2e0700;
+  --ok: #3ddc97;
+  --ok-ink: #06281a;
+  --font-display: "Bowlby One", "Arial Black", Impact, sans-serif;
+  --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  background-image: radial-gradient(ellipse 90% 60% at 50% -10%, #5a2c96 0%, rgba(90,44,150,0) 70%);
+  background-repeat: no-repeat;
+  color: var(--ink);
+  font-family: var(--font-body); font-size: 17px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 56px;
+  min-height: 100%;
+}
+.wrap { max-width: 720px; margin: 0 auto; display: grid; gap: 18px; }
+p { margin: 0; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+/* Kopf */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.logo { font-family: var(--font-display); font-size: clamp(1.5rem, 6vw, 2.3rem); line-height: 1; margin: 0; letter-spacing: .01em; color: var(--gold); text-shadow: 3px 3px 0 var(--hot); transform: rotate(-2deg); }
+.tools { display: flex; gap: 8px; flex-wrap: wrap; }
+.tool { background: transparent; border: 2px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: .82rem; font-weight: 600; color: var(--muted); }
+.tool[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
+
+/* Kommentator */
+.host { display: grid; grid-template-columns: 72px 1fr; gap: 14px; align-items: start; }
+.host svg { width: 72px; height: 72px; display: block; }
+.host .mouth { transform-origin: 36px 47px; }
+.host.talking .mouth { animation: talk .28s infinite alternate; }
+@keyframes talk { from { transform: scaleY(.35); } to { transform: scaleY(1.25); } }
+.bubble { position: relative; background: var(--ink); color: #2a1440; border-radius: 6px 20px 20px 20px; padding: 12px 16px; font-weight: 500; min-width: 0; }
+.bubble b { display: block; font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: #7b4bb5; margin-bottom: 2px; }
+.bubble.pop { animation: pop .25s ease-out; }
+@keyframes pop { from { transform: scale(.96); opacity: .5; } to { transform: none; opacity: 1; } }
+
+/* Punktetafel */
+.scores { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { flex: 1 1 130px; min-width: 0; background: var(--stage); border: 2px solid var(--line); border-radius: 12px; padding: 8px 12px; display: grid; gap: 0; }
+.chip .n { font-size: .78rem; font-weight: 600; color: var(--muted); overflow-wrap: anywhere; }
+.chip .s { font-family: var(--font-display); font-size: 1.25rem; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.chip.neg .s { color: var(--hot); }
+.chip.on { border-color: var(--gold); background: var(--stage-2); }
+.chip.out { opacity: .45; }
+
+/* Bühne */
+.card { background: var(--stage); border: 2px solid var(--line); border-radius: 18px; padding: 22px; display: grid; gap: 18px; min-width: 0; }
+.eyebrow { font-size: .74rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.eyebrow span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; }
+h2 { font-family: var(--font-display); font-weight: 400; font-size: clamp(1.25rem, 4.6vw, 1.7rem); line-height: 1.2; margin: 0; text-wrap: balance; }
+.question { font-size: clamp(1.15rem, 4.2vw, 1.45rem); font-weight: 600; line-height: 1.3; text-wrap: pretty; }
+.hint { color: var(--muted); font-size: .92rem; }
+.timer { height: 10px; background: #1a0b2c; border-radius: 99px; overflow: hidden; }
+.timer i { display: block; height: 100%; width: 100%; background: var(--gold); border-radius: 99px; transition: width .1s linear; }
+.timer.low i { background: var(--hot); }
+
+.answers { display: grid; gap: 10px; }
+.answers.two { grid-template-columns: 1fr 1fr; }
+.ans { display: grid; grid-template-columns: 38px 1fr; gap: 12px; align-items: center; text-align: left; background: var(--stage-2); border: 2px solid var(--line); border-radius: 14px; padding: 12px 14px; font-weight: 600; min-width: 0; }
+.ans .k { font-family: var(--font-display); width: 38px; height: 38px; border-radius: 10px; background: var(--gold); color: var(--gold-ink); display: grid; place-items: center; }
+.ans:not(:disabled):hover { border-color: var(--gold); transform: translateY(-1px); }
+.ans:disabled { cursor: default; }
+.ans.wait { opacity: .75; }
+.ans.struck { opacity: .35; text-decoration: line-through; }
+.ans.right { background: var(--ok); color: var(--ok-ink); border-color: var(--ok); }
+.ans.right .k { background: var(--ok-ink); color: var(--ok); }
+.ans.wrong { background: var(--hot); color: var(--hot-ink); border-color: var(--hot); }
+
+.buzzers { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.buzz { background: var(--hot); color: var(--hot-ink); border: 0; border-bottom: 5px solid #b83422; border-radius: 16px; padding: 14px 10px; font-weight: 800; display: grid; gap: 2px; justify-items: center; min-width: 0; }
+.buzz small { font-weight: 600; font-size: .75rem; opacity: .8; }
+.buzz span { overflow-wrap: anywhere; }
+.buzz:active { transform: translateY(3px); border-bottom-width: 2px; }
+.buzz:disabled { background: var(--line); color: var(--muted); border-bottom-color: #3d2563; cursor: default; }
+
+.btn { background: var(--gold); color: var(--gold-ink); border: 0; border-bottom: 4px solid #c98f00; border-radius: 14px; padding: 13px 22px; font-weight: 800; font-size: 1.05rem; justify-self: start; }
+.btn:active { transform: translateY(2px); border-bottom-width: 2px; }
+.btn.ghost { background: transparent; color: var(--ink); border: 2px solid var(--line); }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+.fact { background: #1a0b2c; border-radius: 12px; padding: 14px 16px; }
+.fact b { color: var(--gold); }
+
+/* Setup */
+.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.mode { text-align: left; background: var(--stage-2); border: 2px solid var(--line); border-radius: 14px; padding: 14px 16px; display: grid; gap: 4px; min-width: 0; }
+.mode strong { font-family: var(--font-display); font-weight: 400; font-size: 1.05rem; }
+.mode span { color: var(--muted); font-size: .9rem; }
+.mode[aria-checked="true"] { border-color: var(--gold); background: #4b2880; }
+.mode[aria-checked="true"] strong { color: var(--gold); }
+.label { font-size: .74rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.count { display: flex; gap: 8px; }
+.count button { width: 48px; height: 48px; border-radius: 12px; background: var(--stage-2); border: 2px solid var(--line); font-family: var(--font-display); font-size: 1.1rem; }
+.count button[aria-pressed="true"] { background: var(--gold); color: var(--gold-ink); border-color: var(--gold); }
+.names { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+input[type="text"] { font: inherit; color: var(--ink); background: #1a0b2c; border: 2px solid var(--line); border-radius: 12px; padding: 11px 14px; width: 100%; min-width: 0; }
+input.big { font-family: var(--font-display); font-size: 1.5rem; text-align: center; }
+.group { display: grid; gap: 8px; }
+
+/* Schätzen und Rangliste */
+.list { display: grid; gap: 8px; }
+.line { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: baseline; background: var(--stage-2); border-radius: 12px; padding: 10px 14px; font-variant-numeric: tabular-nums; }
+.line .who { font-weight: 600; overflow-wrap: anywhere; min-width: 0; }
+.line .d { color: var(--muted); font-size: .88rem; }
+.line.win { outline: 2px solid var(--ok); }
+.line .v { font-family: var(--font-display); }
+.bignum { font-family: var(--font-display); font-size: clamp(2rem, 10vw, 3.2rem); color: var(--gold); line-height: 1.05; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.lives { letter-spacing: .1em; }
+
+@media (max-width: 440px) {
+  .host { grid-template-columns: 54px 1fr; gap: 10px; }
+  .host svg { width: 54px; height: 54px; }
+  .card { padding: 16px; }
+  .answers.two { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .host.talking .mouth, .bubble.pop { animation: none; }
+  .timer i { transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1 class="logo">Keine Ahnung!</h1>
+    <div class="tools">
+      <button class="tool" id="tVoice" data-act="voice" aria-pressed="true">Stimme an</button>
+      <button class="tool" id="tSound" data-act="sound" aria-pressed="true">Ton an</button>
+      <button class="tool" id="tQuit" data-act="quit" hidden>Abbrechen</button>
+    </div>
+  </header>
+
+  <section class="host" id="host" aria-live="polite">
+    <svg viewBox="0 0 72 72" aria-hidden="true">
+      <rect x="31" y="54" width="10" height="14" rx="3" fill="#8d6bc0"/>
+      <rect x="20" y="66" width="32" height="5" rx="2.5" fill="#8d6bc0"/>
+      <circle cx="36" cy="32" r="27" fill="#ffc93c"/>
+      <path d="M11 24h50M9 33h54M12 42h48" stroke="#c98f00" stroke-width="2" fill="none"/>
+      <path d="M19 19l11 4M53 19l-11 4" stroke="#2b1a00" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+      <circle cx="26" cy="29" r="4" fill="#2b1a00"/>
+      <circle cx="46" cy="29" r="4" fill="#2b1a00"/>
+      <ellipse class="mouth" cx="36" cy="47" rx="9" ry="4" fill="#2b1a00"/>
+    </svg>
+    <div class="bubble" id="bubble"><b>Kalle aus dem Off</b><span id="say"></span></div>
+  </section>
+
+  <section class="scores" id="scores" hidden></section>
+  <main id="stage"></main>
+</div>
+
+<script>
+/* ===================== FRAGEN =====================
+   mc: a[0] ist immer die richtige Antwort, gemischt wird beim Spielen.
+   tf: t = true (wahr) oder false (Quatsch).
+   est: v = richtiger Wert, tol = Toleranz für "nah dran" im Solo-Spiel. */
+const MC = [
+{cat:"Liebe geht durch den Rücken", q:"Bei der Weltmeisterschaft im Frauentragen in Finnland schleppt man seine Partnerin über einen Hindernisparcours. Was gewinnt der Sieger?", a:["Das Gewicht der Getragenen in Bier","Eine lebenslange Rückenschule","Ein Rentier namens Pekka","Die Scheidungskosten"], f:"Bier nach Körpergewicht. Der einzige Wettbewerb der Welt, bei dem man hofft, dass die Partnerin vorher noch ein Dessert nimmt."},
+{cat:"Finnland hat zu viel Freizeit", q:"Welche dieser Weltmeisterschaften findet NICHT in Finnland statt?", a:["Käserollen am Steilhang","Luftgitarre","Handyweitwurf","Frauentragen"], f:"Dem Käse rennt man in England hinterher, am Cooper's Hill in Gloucestershire. Der Rest ist finnisch. Die Winter dort sind lang."},
+{cat:"Einsamkeit ist strafbar", q:"Was ist in der Schweiz laut Tierschutzverordnung verboten?", a:["Ein Meerschweinchen allein zu halten","Kühe ohne Glocke auszuführen","Katzen nach 22 Uhr rauszulassen","Goldfische im Kreis schwimmen zu lassen"], f:"Meerschweinchen sind soziale Tiere und brauchen Gesellschaft. Die Schweiz regelt Einsamkeit gesetzlich. Für Menschen steht das noch aus."},
+{cat:"Gemüse als Waffe", q:"Was bewerfen sich Tausende Menschen jedes Jahr im spanischen Buñol?", a:["Tomaten","Paella-Reste","Orangen","Schinkenwürfel"], f:"La Tomatina: eine Stunde lang fliegen tonnenweise Tomaten. Danach riecht die Stadt wie eine Pizzeria nach dem Erdbeben."},
+{cat:"All you can eat, alle können klettern", q:"Im thailändischen Lopburi wird jedes Jahr ein riesiges Buffet aufgebaut. Für wen?", a:["Für die Affen der Stadt","Für die Mönche des Nachbarlandes","Für Touristen, die sich verlaufen haben","Für die Geister ehemaliger Köche"], f:"Tonnenweise Obst und Süßes für ein paar Tausend Makaken. Die bedanken sich, indem sie den Touristen die Sonnenbrillen klauen."},
+{cat:"Militärische Glanzleistungen", q:"Gegen wen zog die australische Armee 1932 mit Maschinengewehren ins Feld und gab nach wenigen Wochen entnervt auf?", a:["Emus","Kängurus","Kaninchen","Neuseeland"], f:"Der Große Emu-Krieg. Die Vögel rannten einfach weiter. Australien verlor gegen etwas, das aussieht wie ein Staubwedel auf Stelzen."},
+{cat:"Fragen Sie Ihren Arzt oder Pommesbudenbesitzer", q:"Als was wurde Tomatenketchup in den 1830er-Jahren in den USA verkauft?", a:["Als Medizin","Als Schuhcreme","Als Rasierwasser","Als Babynahrung"], f:"Ein Arzt pries Tomatenextrakt gegen Verdauungsbeschwerden an, sogar in Pillenform. Pommes rot-weiß sind also streng genommen eine Kur."},
+{cat:"Letzte Ruhe, wiederverschließbar", q:"Fredric Baur erfand die Pringles-Dose. Was geschah nach seinem Tod 2008?", a:["Ein Teil seiner Asche wurde in einer Pringles-Dose beigesetzt","Sein Sarg wurde mit Chips aufgefüllt","Die Firma benannte eine Sorte nach seinem Hund","Sein Grabstein bekam einen Plastikdeckel"], f:"Sein eigener Wunsch. Die Familie hielt auf dem Weg zum Bestatter noch am Supermarkt an und nahm die Sorte Original."},
+{cat:"Anatomie für Angeber", q:"Was hat ein Oktopus, was du nicht hast?", a:["Drei Herzen und blaues Blut","Zwei Mägen und grünes Blut","Vier Lungen und keine Leber","Ein Herz in jedem Arm"], f:"Drei Herzen, blaues Blut und Arme, die halb selbstständig denken. Und trotzdem lebt er meist nur ein paar Jahre. Karma."},
+{cat:"Schokolade mit Abitur", q:"Warum verschenkt man in Japan vor Prüfungen gern Kit Kat?", a:["Der Name klingt auf Japanisch wie „sicher gewinnen“","Der Riegel hat so viele Rippen wie die Prüfung Fächer","Der Kaiser isst angeblich täglich einen","Zucker ist in Schulen sonst verboten"], f:"„Kitto katsu“ heißt so viel wie „sicher gewinnen“. Deshalb gibt es dort Hunderte Sorten, von Wasabi bis Sojasauce. Lernen hilft übrigens auch."},
+{cat:"Auch Türme haben Sommerfiguren", q:"Was passiert mit dem Eiffelturm an heißen Sommertagen?", a:["Er wird bis zu 15 Zentimeter höher","Er neigt sich hörbar nach Westen","Er wird wegen Blitzgefahr gesperrt","Er schrumpft um einen halben Meter"], f:"Eisen dehnt sich bei Wärme aus. Der Turm wächst im Sommer also ein Stück. Anders als bei dir geht das im Winter von allein wieder weg."},
+{cat:"Kennzahlen, die keiner prüfen kann", q:"Was verfolgt das Königreich Bhutan als Staatsziel statt des reinen Wirtschaftswachstums?", a:["Das Bruttonationalglück","Den Nationalen Lächelindex","Die Pro-Kopf-Gelassenheit","Das Yak-Zufriedenheitsbarometer"], f:"Das Bruttonationalglück steht dort sogar in der Verfassung. Bei uns misst man stattdessen die Pünktlichkeit der Bahn. Jedes Land leidet auf seine Art."},
+{cat:"Klebrige Gesetzgebung", q:"Wessen Verkauf ist in Singapur seit 1992 weitgehend verboten?", a:["Kaugummi","Konfetti","Luftballons","Sekundenkleber"], f:"Kaugummi klebte in den Türen der U-Bahn, also war Schluss. Ausnahmen gibt es nur für medizinische Sorten. Ein ganzes Land ohne Unterseite am Schultisch."},
+{cat:"Kulinarische Körperverletzung", q:"Was ist die isländische Spezialität Hákarl?", a:["Monatelang fermentierter Hai","In Milch eingelegter Papageitaucher","Geräucherter Schafsmagen mit Lakritz","Auf Lava getrockneter Dorsch"], f:"Grönlandhai, erst vergoren, dann monatelang aufgehängt. Riecht nach Ammoniak und falschen Lebensentscheidungen. Island hat wirklich versucht, uns fernzuhalten."},
+{cat:"Kulinarische Körperverletzung, Teil 2", q:"Was macht den sardischen Käse Casu Marzu so besonders?", a:["Er enthält lebende Maden","Er reift in Schafwolle","Er wird in Meerwasser gekocht","Er leuchtet schwach im Dunkeln"], f:"Die Maden der Käsefliege gehören dazu und können springen. Der Verkauf ist verboten. Manche Gesetze sind einfach gut."},
+{cat:"Es ist immer irgendwo Apéro", q:"Welches Land hat dank seiner Überseegebiete die meisten Zeitzonen der Welt?", a:["Frankreich","Russland","USA","China"], f:"Frankreich kommt auf zwölf Zeitzonen, Russland auf elf. China hat nur eine einzige, obwohl das Land breit genug für fünf wäre."},
+{cat:"Früher war mehr Olympia", q:"Welche Disziplin war von 1900 bis 1920 tatsächlich olympisch?", a:["Tauziehen","Sackhüpfen","Eierlaufen","Armdrücken"], f:"Tauziehen war fünfmal im Programm. 1908 gewann ein Team der Londoner Polizei. Die Gegner beschwerten sich über verdächtig schwere Stiefel."},
+{cat:"Die Natur hat getrunken", q:"Das Schnabeltier ist ein Säugetier ohne Zitzen. Wie kommen die Jungen an ihre Milch?", a:["Die Milch tritt durch die Haut aus und wird vom Fell geleckt","Die Mutter würgt sie hoch wie ein Vogel","Sie trinken aus einer Hauttasche am Schwanz","Gar nicht, sie fressen von Geburt an Würmer"], f:"Die Milch wird regelrecht ausgeschwitzt. Dazu legt das Tier Eier, hat einen Entenschnabel, und die Männchen sind giftig. Ein Tier wie ein Gruppenprojekt."},
+{cat:"Bitte ausreichend frankieren und abtrocknen", q:"Was kann man vor der Küste des Inselstaats Vanuatu unter Wasser tun?", a:["Eine wasserfeste Postkarte in einen Briefkasten werfen","Einen Führerschein für Tretboote machen","Geld an einem Automaten abheben","Eine Steuererklärung abgeben"], f:"Das Unterwasser-Postamt liegt ein paar Meter tief vor Hideaway Island. Die Karten kommen trotzdem schneller an als manches Paket bei uns."},
+{cat:"Zweiter Platz, erste Liga", q:"Welches Land hat mehr Pyramiden als Ägypten?", a:["Sudan","Mexiko","Peru","Iran"], f:"Im Sudan stehen über 200 Pyramiden des Reichs von Kusch, deutlich mehr als in Ägypten. Nur das Marketing war in Kairo besser."},
+{cat:"Alle summen mit", q:"Was fehlt der spanischen Nationalhymne?", a:["Ein Text","Ein Refrain","Ein Schluss","Ein Komponist, der sich dazu bekennt"], f:"Die Marcha Real hat offiziell keinen Text. Spanische Fußballer stehen vor dem Spiel deshalb einfach nur da. Immerhin kann niemand den Einsatz verpassen."},
+{cat:"Stille Nacht, frittierte Nacht", q:"Was essen Millionen Japaner traditionell an Weihnachten?", a:["Hähnchen von KFC","Sushi in Tannenbaumform","Lebkuchen mit Wasabi","Gänsebraten aus der Dose"], f:"Eine Werbekampagne aus den Siebzigern hat das geschafft. Man bestellt Wochen vorher. Der Colonel steht dort im Weihnachtsmannkostüm vor der Tür."},
+{cat:"Kaffee mit Vorgeschichte", q:"Was macht den Kaffee Kopi Luwak so teuer?", a:["Die Bohnen wurden von einer Schleichkatze gefressen und ausgeschieden","Die Bohnen reifen zehn Jahre in einem Vulkankrater","Er wird nur bei Vollmond gepflückt","Jede Bohne wird einzeln von Mönchen geröstet"], f:"Der Fleckenmusang frisst die Kaffeekirschen, die Bohnen kommen hinten wieder raus. Irgendjemand hat das als Erster probiert. Über diesen Menschen wissen wir zu wenig."},
+{cat:"Hausordnung am Ende der Welt", q:"Was ist im norwegischen Longyearbyen auf Spitzbergen seit Jahrzehnten nicht mehr möglich?", a:["Sich dort im Sarg beerdigen zu lassen","Ein Fahrrad zu besitzen","Nach Mitternacht Licht anzulassen","Einen Hund ohne Schlitten zu halten"], f:"Im Dauerfrostboden verwesen Leichen nicht, deshalb gibt es seit 1950 keine Sargbestattungen mehr. Wer schwer krank wird, fliegt aufs Festland. Sterben bitte woanders."},
+{cat:"Aberglaube mit drei Stufen", q:"Wovor fürchten sich viele Menschen in Südkorea traditionell?", a:["Im Schlaf durch einen laufenden Ventilator zu sterben","Dass Mikrowellen Träume löschen","Dass Regenschirme im Haus die Ernte verderben","Dass Spiegel nachts die Seele filmen"], f:"Der Ventilatortod ist ein hartnäckiger Volksglaube, Ventilatoren haben dort oft eine Zeitschaltuhr. Belegt ist nur, dass man davon einen steifen Nacken bekommt."},
+{cat:"Bis dass der Tod euch nicht scheidet", q:"Was ist in Frankreich mit Genehmigung des Staatspräsidenten rechtlich möglich?", a:["Einen Verstorbenen zu heiraten","Sich selbst zu heiraten","Sein Haustier zu adoptieren","Zwei Hauptwohnsitze im selben Zimmer anzumelden"], f:"Die posthume Ehe steht im Code civil. Man muss belegen, dass die Hochzeit geplant war. Der Bräutigam sagt dann erwartungsgemäß wenig."},
+{cat:"Nachbarschaftshilfe mit Zähnen", q:"Warum lassen viele Einwohner von Churchill in Kanada ihre Autos unverschlossen?", a:["Damit sich Fußgänger vor Eisbären hineinretten können","Weil die Schlösser sonst zufrieren","Weil es dort seit 50 Jahren keinen Diebstahl gab","Weil die Versicherung es vorschreibt"], f:"Churchill nennt sich Eisbärenhauptstadt der Welt. Ein offenes Auto ist dort eine Lebensversicherung. Für aufdringliche Bären gibt es sogar ein eigenes Gefängnis."},
+{cat:"Die schlimmste Party der Geschichte", q:"Was geschah 1518 in Straßburg?", a:["Hunderte Menschen tanzten wochenlang, ohne aufhören zu können","Die ganze Stadt schlief drei Tage lang durch","Alle Glocken läuteten ein Jahr lang ununterbrochen","Es regnete zwei Tage lang Frösche"], f:"Die Tanzwut begann mit einer einzelnen Frau und erfasste Hunderte. Die Behörden engagierten zur Abhilfe erst mal Musiker. Es half nicht."},
+{cat:"Waterloo war nicht die erste Niederlage", q:"Von wem wurde Napoleon der Überlieferung nach 1807 bei einer Jagd in die Flucht geschlagen?", a:["Von einer Horde Kaninchen","Von einem einzelnen Schwan","Von seinen eigenen Jagdhunden","Von einem Bienenschwarm"], f:"Für die Jagd hatte man zahme Kaninchen besorgt. Die hielten den Kaiser für den Futterlieferanten und stürmten zu Hunderten auf ihn los. Er floh in die Kutsche."},
+{cat:"Würze des Lebens", q:"Was passiert in Dänemark traditionell mit Menschen, die an ihrem 25. Geburtstag noch unverheiratet sind?", a:["Sie werden mit Zimt überschüttet","Sie müssen ein Jahr lang einen gelben Hut tragen","Sie bekommen einen Hering an die Haustür genagelt","Sie zahlen eine Runde für das ganze Dorf"], f:"Erst nass gemacht, dann Zimt drüber. Mit 30 gibt es Pfeffer. Dänemark gilt trotzdem als eines der glücklichsten Länder der Welt. Vermutlich wegen der Verheirateten."},
+{cat:"Zwölf Schläge, zwölf Chancen zu ersticken", q:"Was tut man in Spanien um Mitternacht an Silvester?", a:["Zu jedem Glockenschlag eine Weintraube essen","Zwölf Mal um den Küchentisch laufen","Zwölf Münzen aus dem Fenster werfen","Zwölf Sekunden lang schweigen"], f:"Zwölf Trauben in zwölf Sekunden bringen Glück fürs neue Jahr. Wer sich verschluckt, hat immerhin ein Gesprächsthema."},
+{cat:"Übernachten für Fortgeschrittene", q:"Was konnte man ab 2011 für rund 70.000 Dollar pro Nacht mieten?", a:["Das ganze Fürstentum Liechtenstein","Den Eiffelturm samt Personal","Ein Zimmer im Buckingham Palace","Die Zugspitze inklusive Gipfelkreuz"], f:"Im Paket: eigene Straßenschilder, symbolischer Staatsschlüssel und Weinprobe beim Fürsten. Frühstück vermutlich extra."},
+{cat:"Level 1 war aus Pappe", q:"Was stellte Nintendo bei der Gründung 1889 her?", a:["Spielkarten","Nähmaschinen","Reiskocher","Holzspielzeug"], f:"Handgefertigte Hanafuda-Karten. Später versuchte sich die Firma an Taxis und Instantreis, bevor ein Klempner mit Schnurrbart alles rettete."},
+{cat:"Niedlich mit dunkler Vergangenheit", q:"Wovon wird die japanische Insel Ōkunoshima heute bevölkert?", a:["Von Hunderten zutraulichen Kaninchen","Von verwilderten Pudeln","Von Schildkröten mit Hausnummern","Von ausgesetzten Papageien"], f:"Früher stand dort eine geheime Giftgasfabrik, heute hoppeln Kaninchen den Touristen hinterher. Selten wurde ein Ort so gründlich umgeschult."},
+{cat:"Wer hat das Licht angelassen?", q:"Was ist das „Tor zur Hölle“ in Turkmenistan?", a:["Ein Gaskrater, der seit Jahrzehnten brennt","Ein Einkaufszentrum ohne Ausgänge","Ein Tunnel, in dem jedes Navi ausfällt","Ein Salzsee, der nachts rot leuchtet"], f:"Der Krater von Derweze brennt seit den Siebzigern. Angeblich zündeten Geologen das Gas an und dachten, das sei in ein paar Tagen erledigt. Projektplanung wie am Berliner Flughafen."},
+{cat:"Bitte anschnallen, wir landen", q:"Wie lange dauert der kürzeste Linienflug der Welt zwischen zwei schottischen Orkney-Inseln?", a:["Keine zwei Minuten","Etwa neun Minuten","Etwa eine Viertelstunde","Genau 22 Minuten"], f:"Von Westray nach Papa Westray sind es knapp drei Kilometer. Bei Rückenwind dauert der Flug unter einer Minute. Für den Tomatensaft reicht es nicht."},
+{cat:"Englisch für Angeber", q:"Wie nennt man im Englischen eine Gruppe von Flamingos?", a:["A flamboyance","A pinkness","A stiltwalk","A sunset"], f:"Eine Flamboyance. Krähen bilden übrigens einen „murder“ und Eulen ein „parliament“. Die englische Sprache hatte offenbar einen sehr guten Abend."},
+{cat:"Wetterbericht aus der Unterwelt", q:"In welchem Land liegt der Ort Hell, der jeden Winter zuverlässig zufriert?", a:["Norwegen","Kanada","Island","Schottland"], f:"Hell liegt bei Trondheim. Am Bahnhof hängt ein Schild mit der Aufschrift „Gods-Expedition“. Das heißt Güterabfertigung. Fotografiert wird es trotzdem."},
+{cat:"Ortsschilder, die ständig geklaut wurden", q:"Wie hieß das oberösterreichische Dorf Fugging bis Ende 2020?", a:["Fucking","Petting","Kissing","Wixhausen"], f:"Nach Jahrzehnten geklauter Ortsschilder hatten die Einwohner genug. Petting und Kissing liegen übrigens in Bayern und heißen immer noch so."},
+{cat:"Wer denkt sich so etwas aus", q:"Wie lautet der scherzhafte Fachbegriff für die Angst vor langen Wörtern?", a:["Hippopotomonstrosesquippedaliophobie","Brevilexophobie","Logomegalophobie","Makroglossie"], f:"Ein Wort mit über dreißig Buchstaben für die Angst vor langen Wörtern. Wer das erfunden hat, mochte seine Patienten nicht."},
+{cat:"Guðmundur, welcher Guðmundur?", q:"Wonach ist das isländische Telefonbuch sortiert?", a:["Nach Vornamen","Nach Geburtsjahr","Nach Hausfarbe","Nach Entfernung zum nächsten Vulkan"], f:"Isländer haben meist keine Familiennamen, sondern heißen nach Vater oder Mutter. Deshalb steht im Telefonbuch oft der Beruf dabei."},
+{cat:"Kommunalpolitik auf Samtpfoten", q:"Wer galt in Talkeetna, Alaska, rund zwanzig Jahre lang als ehrenamtlicher Bürgermeister?", a:["Ein Kater namens Stubbs","Ein Elch namens Gary","Ein Schneemann, der jährlich neu gebaut wurde","Ein Papagei, der „Nein“ sagen konnte"], f:"Stubbs amtierte von 1997 bis zu seinem Tod 2017 und trank Wasser mit Katzenminze aus einem Weinglas. Skandale: keine. Mehr kann man von Politik nicht verlangen."},
+{cat:"Flaggenkunde für Erwachsene", q:"Welches Land zeigt ein Sturmgewehr vom Typ AK-47 auf seiner Nationalflagge?", a:["Mosambik","Nordkorea","Kuba","Albanien"], f:"Mosambik, zusammen mit einem Buch und einer Hacke. Bildung, Landwirtschaft, Kalaschnikow. Ein Lehrplan."},
+{cat:"Flaggenkunde für Geometrieverweigerer", q:"Welches Land hat als einziges eine Nationalflagge, die kein Viereck ist?", a:["Nepal","Schweiz","Bhutan","Katar"], f:"Nepals Flagge besteht aus zwei Wimpeln übereinander. Die Schweizer Flagge ist quadratisch, aber immerhin ein Viereck. Knapp daneben, Eidgenossen."}
+];
+
+const TF = [
+{q:"Wombats produzieren würfelförmigen Kot.", t:true, f:"Die Würfel rollen nicht weg und markieren so das Revier. Die Natur hat ein Problem gelöst, das wir gar nicht hatten."},
+{q:"Das Nationaltier Schottlands ist das Einhorn.", t:true, f:"Seit Jahrhunderten. Ein Land, das sich für ein Tier entscheidet, das garantiert nie ausstirbt."},
+{q:"Bananen sind botanisch gesehen Beeren, Erdbeeren dagegen nicht.", t:true, f:"Die Erdbeere ist eine Sammelnussfrucht. Die Botanik macht das mit Absicht."},
+{q:"Kleopatra lebte zeitlich näher an der Mondlandung als am Bau der Cheops-Pyramide.", t:true, f:"Zwischen Pyramide und Kleopatra liegen rund 2500 Jahre, bis zur Mondlandung nur etwa 2000."},
+{q:"Die Universität Oxford ist älter als das Reich der Azteken.", t:true, f:"In Oxford wurde schon um 1096 gelehrt. Die Aztekenhauptstadt Tenochtitlan entstand erst 1325."},
+{q:"Lego ist nach Stückzahl der größte Reifenhersteller der Welt.", t:true, f:"Hunderte Millionen winzige Reifen pro Jahr. Der Reifenwechsel dauert dort zwei Sekunden."},
+{q:"Karotten waren ursprünglich meist violett oder gelb, nicht orange.", t:true, f:"Die orange Möhre setzte sich erst vor ein paar Hundert Jahren in den Niederlanden durch."},
+{q:"Die Pizza Hawaii wurde in Kanada erfunden.", t:true, f:"1962 von einem griechischstämmigen Wirt in Ontario. Italien und Hawaii sind beide unschuldig."},
+{q:"Giraffen haben genauso viele Halswirbel wie Menschen.", t:true, f:"Sieben Stück. Nur ist bei der Giraffe jeder einzelne so lang wie dein Unterarm."},
+{q:"Krokodile können ihre Zunge nicht herausstrecken.", t:true, f:"Die Zunge ist am Mundboden festgewachsen. Frech werden sie anders."},
+{q:"In Saudi-Arabien gibt es keinen einzigen dauerhaft fließenden Fluss.", t:true, f:"Nur Trockentäler, die nach Regen kurz Wasser führen. Ein Land so groß wie halb Westeuropa, und kein einziger Bach."},
+{q:"Bolivien unterhält eine Marine, obwohl es keinen Zugang zum Meer hat.", t:true, f:"Die Küste ging im 19. Jahrhundert an Chile verloren. Die Marine übt seitdem auf dem Titicacasee. Hoffnung ist auch eine Strategie."},
+{q:"Der Inselstaat Tuvalu verdient einen guten Teil seines Geldes mit der Internetendung .tv.", t:true, f:"Streamingdienste zahlen Millionen für die Endung. Tuvalu hat davon unter anderem Straßen gebaut. Der beste Zufall der Internetgeschichte."},
+{q:"Die Schweizer Armee ist 2007 versehentlich in Liechtenstein einmarschiert.", t:true, f:"Rund 170 Soldaten verliefen sich nachts über die Grenze. Liechtenstein hat es nicht einmal bemerkt."},
+{q:"Auf der Venus dauert ein Tag länger als ein Jahr.", t:true, f:"Eine Drehung um sich selbst dauert 243 Erdentage, ein Umlauf um die Sonne nur 225. Montage sind dort die Hölle. Der Rest auch."},
+{q:"Koalas haben Fingerabdrücke, die denen von Menschen zum Verwechseln ähnlich sind.", t:true, f:"Selbst unter dem Mikroskop schwer zu unterscheiden. Sollte in Australien je ein Eukalyptuslager ausgeraubt werden, wird es kompliziert."},
+{q:"Seeotter halten sich beim Schlafen an den Pfoten, um nicht auseinanderzutreiben.", t:true, f:"Alternativ wickeln sie sich in Seetang. Beides ist niedlicher als alles, was du diese Woche gemacht hast."},
+{q:"Die größte Wüste der Erde ist die Antarktis.", t:true, f:"Wüste heißt wenig Niederschlag, nicht viel Sand. Die Sahara ist nur die größte heiße."},
+{q:"Das Faxgerät wurde vor dem Telefon erfunden.", t:true, f:"Das Patent stammt von 1843, das Telefon kam 1876. Deutsche Behörden halten also schlicht an bewährter Technik fest."},
+{q:"In Frankreich wurde zuletzt 1977 ein Mensch mit der Guillotine hingerichtet, im selben Jahr, in dem Star Wars ins Kino kam.", t:true, f:"Im September 1977 in Marseille. Abgeschafft wurde die Todesstrafe dort erst 1981."},
+{q:"Australien ist breiter als der Mond.", t:true, f:"Australien misst von West nach Ost rund 4000 Kilometer, der Mond hat einen Durchmesser von etwa 3470."},
+{q:"Haie gibt es schon länger als Bäume.", t:true, f:"Haie schwimmen seit rund 450 Millionen Jahren herum, Bäume kamen etwa 70 Millionen Jahre später."},
+{q:"In Japan werden würfelförmige Wassermelonen gezüchtet.", t:true, f:"Sie wachsen in Kästen, kosten ein Vermögen und werden meist unreif geerntet. Sie sind Deko. Teure, eckige Deko."},
+{q:"Das Feuerzeug wurde vor dem Streichholz erfunden.", t:true, f:"Döbereiners Feuerzeug gab es 1823, das Reibungsstreichholz kam drei Jahre später."},
+{q:"Honig verdirbt praktisch nie.", t:true, f:"In ägyptischen Gräbern fand man jahrtausendealten Honig, der noch essbar war. Das Haltbarkeitsdatum auf dem Glas ist reine Höflichkeit."},
+{q:"Goldfische haben ein Gedächtnis von nur drei Sekunden.", t:false, f:"Goldfische merken sich Dinge über Monate. Du verwechselst das mit dir beim Betreten der Küche."},
+{q:"Ein Blitz schlägt nie zweimal an derselben Stelle ein.", t:false, f:"Das Empire State Building wird gut zwanzig Mal im Jahr getroffen."},
+{q:"Die Chinesische Mauer kann man vom Mond aus mit bloßem Auge erkennen.", t:false, f:"Vom Mond aus erkennt man gerade so Kontinente. Die Mauer ist lang, aber schmal wie eine Landstraße."},
+{q:"Stiere werden von der Farbe Rot wütend.", t:false, f:"Stiere können Rot kaum von Grün unterscheiden. Sie ärgert das Gewedel. Und vermutlich die Gesamtsituation."},
+{q:"Der Mensch nutzt nur zehn Prozent seines Gehirns.", t:false, f:"Wir nutzen alles, nur nicht alles gleichzeitig. Bei manchen merkt man es bloß nicht."},
+{q:"Der Gipfel des Mount Everest ist der Punkt der Erdoberfläche, der am weitesten vom Erdmittelpunkt entfernt ist.", t:false, f:"Das ist der Chimborazo in Ecuador, weil die Erde am Äquator dicker ist. Der Everest ist nur über dem Meeresspiegel der höchste."},
+{q:"Der Glückskeks stammt aus China.", t:false, f:"Er kommt aus Kalifornien und hat japanische Wurzeln. In China kennt man ihn kaum."},
+{q:"Strauße stecken bei Gefahr den Kopf in den Sand.", t:false, f:"Sie legen sich flach hin oder rennen mit 70 km/h davon. Den Kopf in den Sand steckt nur der Mensch."},
+{q:"Wikinger trugen in der Schlacht Helme mit Hörnern.", t:false, f:"Die Hörner stammen aus Opernkostümen des 19. Jahrhunderts. Danke, Wagner."},
+{q:"Napoleon war für seine Zeit auffallend klein.", t:false, f:"Mit knapp 1,70 Meter war er Durchschnitt. Der Rest ist britische Propaganda und ein Durcheinander bei den Maßeinheiten."},
+{q:"Fledermäuse sind blind.", t:false, f:"Alle Fledermäuse können sehen, manche sogar ziemlich gut. Das Echolot haben sie zusätzlich. Angeber."},
+{q:"Zucker macht Kinder nachweislich hyperaktiv.", t:false, f:"Studien finden keinen Effekt. Es liegt am Kindergeburtstag, nicht an der Torte."},
+{q:"Jeder Mensch verschluckt im Schlaf rund acht Spinnen pro Jahr.", t:false, f:"Ein Mythos ohne jede Grundlage. Spinnen halten einen schnarchenden Riesen für ein Problem, nicht für ein Ausflugsziel."},
+{q:"Verschluckter Kaugummi bleibt sieben Jahre im Magen.", t:false, f:"Er wird nicht verdaut, aber nach ein paar Tagen ganz normal ausgeschieden. Details ersparen wir uns."},
+{q:"Albert Einstein war in der Schule schlecht in Mathematik.", t:false, f:"Er war hervorragend in Mathe. Das Gerücht hält sich nur, weil es alle tröstet, die es nicht sind."},
+{q:"Kamele speichern Wasser in ihren Höckern.", t:false, f:"In den Höckern steckt Fett. Ein Kamel ohne Reserven hat schlaffe Höcker. Kennt man von sich nach dem Urlaub andersherum."},
+{q:"Pinguine leben in freier Wildbahn auch am Nordpol.", t:false, f:"Pinguine gibt es nur auf der Südhalbkugel. Eisbären und Pinguine begegnen sich ausschließlich in der Werbung."},
+{q:"Die Hauptstadt Australiens ist Sydney.", t:false, f:"Es ist Canberra. Ein Kompromiss, weil sich Sydney und Melbourne nicht einigen konnten. Also baute man eine dritte Stadt dazwischen."},
+{q:"Das Croissant ist eine französische Erfindung.", t:false, f:"Vorbild war das Wiener Kipferl. Ein Österreicher eröffnete um 1840 eine Bäckerei in Paris. Der Rest ist Butter."},
+{q:"Nach den Gesetzen der Physik dürften Hummeln eigentlich nicht fliegen können.", t:false, f:"Die Rechnung dahinter behandelte die Hummel wie ein starres Flugzeug. Die Hummel hat die Rechnung nie gelesen."},
+{q:"Haare und Fingernägel wachsen nach dem Tod noch weiter.", t:false, f:"Die Haut trocknet aus und zieht sich zurück, dadurch wirkt alles länger. Wachsen tut da nichts mehr."},
+{q:"Glas ist eine Flüssigkeit. Deshalb sind alte Kirchenfenster unten dicker als oben.", t:false, f:"Glas fließt bei Raumtemperatur nicht messbar. Die Scheiben waren von Anfang an ungleichmäßig, und die Glaser setzten die dicke Seite nach unten."}
+];
+
+const EST = [
+{q:"Wie viele Buchstaben hat der berühmte walisische Ortsname, der mit „Llanfairpwll“ beginnt, in voller Länge?", v:58, tol:5, u:"Buchstaben", f:"58 Buchstaben. Den vollen Namen erfand man im 19. Jahrhundert, um Touristen anzulocken. Hat funktioniert."},
+{q:"Wie viele Minuten dauerte der kürzeste Krieg der Geschichte, 1896 zwischen Großbritannien und Sansibar?", v:38, tol:7, u:"Minuten", f:"Je nach Quelle 38 bis 45 Minuten. Der Sultanspalast brannte, bevor der Tee kalt war."},
+{q:"Wie viele Jahre dauerte der Hundertjährige Krieg?", v:116, tol:5, u:"Jahre", f:"116 Jahre, von 1337 bis 1453. Historiker runden offenbar großzügig."},
+{q:"Wie viele Knochen hat ein neugeborenes Baby ungefähr?", v:300, tol:30, u:"Knochen", f:"Rund 300. Viele wachsen später zusammen, am Ende bleiben 206. Du warst also schon mal vollständiger."},
+{q:"Wie viele Inseln hat Schweden laut der staatlichen Statistikbehörde?", v:267570, tol:40000, u:"Inseln", f:"267.570 Inseln, bewohnt sind keine tausend. Irgendjemand in Schweden hat das gezählt. Bezahlt."},
+{q:"Wie viele Seen zählt Finnland, das „Land der tausend Seen“?", v:188000, tol:30000, u:"Seen", f:"Rund 188.000. Das Land der tausend Seen untertreibt um den Faktor 188. Finnische Bescheidenheit."},
+{q:"Wie viele Stufen führen bis zur Spitze des Eiffelturms?", v:1665, tol:150, u:"Stufen", f:"1665 Stufen. Besucher dürfen nur bis zur zweiten Etage laufen. Danach hat ohnehin niemand mehr Fragen."},
+{q:"Wie viele Sprachen werden in Papua-Neuguinea ungefähr gesprochen?", v:840, tol:100, u:"Sprachen", f:"Rund 840, mehr als in jedem anderen Land. Dort versteht man im Nachbartal wirklich kein Wort."},
+{q:"Wie viele Kilometer ist die Chinesische Mauer laut der offiziellen Vermessung von 2012 lang, alle Abschnitte zusammen?", v:21196, tol:3000, u:"Kilometer", f:"21.196 Kilometer, das ist mehr als der halbe Erdumfang. Und trotzdem kamen die Mongolen durch."},
+{q:"Wie viele Erdentage braucht die Venus für eine einzige Drehung um sich selbst?", v:243, tol:25, u:"Tage", f:"243 Erdentage. Ein Venusjahr dauert nur 225. Dort hat man öfter Geburtstag als Feierabend."},
+{q:"Wie viele Emus hat die australische Armee im Emu-Krieg 1932 nach eigenen Angaben erlegt?", v:986, tol:150, u:"Emus", f:"986 Emus bei knapp 10.000 Schuss. Rund 20.000 Vögel waren unterwegs. Das nennt man eine Niederlage."},
+{q:"Wie viele Jahre alt wurde die Französin Jeanne Calment, der älteste Mensch mit gesichertem Geburtsdatum?", v:122, tol:3, u:"Jahre", f:"122 Jahre. Mit dem Rauchen hörte sie mit 117 auf. Angeblich, weil sie die Zigarette nicht mehr selbst anzünden konnte."},
+{q:"Wie viele Jahre vergingen zwischen Grundsteinlegung und Vollendung des Kölner Doms?", v:632, tol:60, u:"Jahre", f:"632 Jahre, von 1248 bis 1880. Und seitdem steht durchgehend ein Gerüst dran."},
+{q:"An wie viele Staaten grenzt China?", v:14, tol:2, u:"Staaten", f:"14 Nachbarn, so viele hat sonst nur Russland. Stell dir die Eigentümerversammlung vor."},
+{q:"In welchem Jahr brach das Kohlefeuer unter der US-Stadt Centralia aus, das bis heute brennt?", v:1962, tol:8, u:"", year:true, f:"1962, vermutlich durch brennenden Müll. Die Stadt ist fast verlassen, das Feuer hat noch Kohle für Jahrhunderte."},
+{q:"Wie viele Jahre lang hatte der Amerikaner Charles Osborne ununterbrochen Schluckauf?", v:68, tol:6, u:"Jahre", f:"68 Jahre, von 1922 bis 1990. Er heiratete trotzdem zweimal und bekam acht Kinder. Erschrecken hat offenbar niemand probiert."},
+{q:"Wie viele Tasten hat ein normales Klavier?", v:88, tol:4, u:"Tasten", f:"88 Tasten, 52 weiße und 36 schwarze. Die meisten Menschen benutzen davon etwa sechs, für den Flohwalzer."}
+];
+
+/* ===================== KOMMENTATOR ===================== */
+const LINES = {
+  hello: [
+    "Willkommen bei „Keine Ahnung!“, der Show, in der Halbwissen endlich Konsequenzen hat. Such dir einen Modus aus. Blamieren kannst du dich in allen.",
+    "Da bist du ja. Ich bin Kalle, deine Stimme aus dem Off. Ich weiß alles, du gleich etwas weniger. Wähl einen Modus.",
+    "Herzlich willkommen. Die Fragen sind skurril, die Antworten wahr, und dein Selbstbewusstsein ist in zehn Minuten Geschichte."
+  ],
+  right: [
+    "Richtig, {n}. Ich bin so überrascht wie du.",
+    "Stimmt. {n} hat entweder Ahnung oder Glück. Ich tippe auf Glück.",
+    "Korrekt, {n}. Schreib dir das Datum auf, das passiert nicht oft.",
+    "Jawoll, {n}. Irgendwo ist gerade eine Lehrkraft stolz auf dich, ohne zu wissen, warum.",
+    "Richtig! {n} liest offenbar die Rückseiten von Cornflakes-Packungen.",
+    "Treffer, {n}. Sogar ein blindes Huhn findet mal eine Quizfrage."
+  ],
+  wrong: [
+    "Falsch, {n}. Aber mit Überzeugung vorgetragen, das muss man dir lassen.",
+    "Nein, {n}. Einfach nein.",
+    "Daneben, {n}. Nicht knapp daneben. Daneben wie Parken auf der Autobahn.",
+    "Autsch, {n}. Das war so falsch, dass es fast schon wieder Kunst ist.",
+    "Leider nein, {n}. Die richtige Antwort stand direkt daneben und hat gewunken.",
+    "Falsch, {n}. Ich ziehe dir Punkte ab und ein bisschen Respekt."
+  ],
+  wrongOn: [
+    "Falsch, {n}. Du bist raus. Die anderen dürfen noch.",
+    "Nein, {n}. Setz dich. Wer traut sich jetzt?",
+    "Daneben, {n}. Die Antwort ist gestrichen, du auch. Weiter!"
+  ],
+  slow: [
+    "Zeit um, {n}. Buzzern und dann schweigen. Mutig.",
+    "{n} drückt und denkt erst danach. Zu spät."
+  ],
+  timeout: [
+    "Zeit abgelaufen. Ich habe schon Gletscher schneller antworten sehen.",
+    "Niemand? Wirklich niemand? Ich mache das hier doch nicht zum Spaß.",
+    "Stille. Schöne, peinliche Stille. Die Zeit ist um.",
+    "Abgelaufen. Nachdenken ist erlaubt, aber bitte innerhalb der Sendezeit."
+  ],
+  buzz: [
+    "{n} hat gebuzzert. Dann zeig mal.",
+    "{n} ist dran. Acht Sekunden, keine Ausreden.",
+    "Aha, {n} glaubt, es zu wissen. Das wird interessant."
+  ],
+  lifeLost: ["Ein Leben weniger.", "Das kostet ein Leben.", "Da geht ein Leben dahin."],
+  estIntro: ["Schätzfrage. Niemand weiß es, also rate wenigstens selbstbewusst.", "Zahlen, bitte. Je absurder, desto besser."],
+  estExact: "Punktlandung von {n}. Das ist mir unheimlich.",
+  estWin: ["{n} lag am nächsten dran. Am nächsten heißt hier nicht nah.", "Der Punkt geht an {n}. Unter Blinden ist der Einäugige eben König.", "{n} gewinnt die Runde. Geraten ist auch gewusst."],
+  estSoloGood: ["Nah dran. Du hast das doch nicht etwa gewusst?", "Respektabel geschätzt. Ich bin fast beeindruckt."],
+  estSoloMeh: ["Grob die richtige Richtung. Wie ein Navi ohne Empfang.", "Na ja. In derselben Galaxie warst du immerhin."],
+  estSoloBad: ["Das war keine Schätzung, das war ein Hilferuf.", "Weit, weit weg. Hast du gewürfelt?"]
+};
+const MODES = {
+  klassik: { name:"Die große Show", desc:"10 Fragen mit vier Antworten. Die Einsätze steigen, falsche Antworten kosten Punkte.",
+    intro:"Die große Show. Zehn Fragen, steigende Einsätze, und wer falsch antwortet, zahlt. Wie im echten Leben, nur mit mir.",
+    rules:["10 Fragen, je vier Antworten.","Frage 1 bis 5 bringen 1000 Punkte, Frage 6 bis 9 bringen 2000, die letzte 4000.","Falsche Antwort: der halbe Einsatz wird abgezogen."] },
+  wq: { name:"Wahr oder Quatsch", desc:"12 Behauptungen im Schnelldurchlauf. Stimmt das, oder hat sich das jemand ausgedacht?",
+    intro:"Wahr oder Quatsch. Ich behaupte etwas, du entscheidest. Zwölf Runden, zehn Sekunden. Fifty-fifty, und du schaffst es trotzdem, schlechter zu sein.",
+    rules:["12 Behauptungen, 10 Sekunden pro Runde.","Richtig: 500 Punkte. Falsch: 250 Punkte Abzug."] },
+  est: { name:"Schätz-Duell", desc:"6 Zahlenfragen, die niemand wissen kann. Wer am nächsten dran ist, kassiert.",
+    intro:"Das Schätz-Duell. Sechs Fragen, auf die kein normaler Mensch die Antwort kennt. Also perfekt für dich.",
+    rules:["6 Schätzfragen, jeder tippt geheim eine Zahl.","Mehrere Spieler: Wer am nächsten liegt, bekommt 1000 Punkte, bei exaktem Treffer 2000.","Allein: je näher, desto mehr Punkte (bis 1500)."] },
+  surv: { name:"Bis einer heult", desc:"Drei Leben, Fragen ohne Ende. Jeder Fehler kostet ein Leben. Allein mit Bestwert.",
+    intro:"Bis einer heult. Drei Leben, kein Netz, kein doppelter Boden. Jede falsche Antwort kostet ein Leben. Ich zähle mit, und zwar gern.",
+    rules:["Jeder hat 3 Leben. Gemischte Fragen, 15 Sekunden Zeit.","Falsch oder zu langsam: ein Leben weg.","Mehrere Spieler: reihum, bis nur noch einer übrig ist. Allein: so weit du kommst."] }
+};
+const BUZZ_KEYS = ["q","p","x","m"];
+
+/* ===================== HILFEN ===================== */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const fmt = n => n.toLocaleString("de-DE");
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("ka_" + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("ka_" + k, JSON.stringify(v)); } catch {} }
+};
+/* Zieht n Fragen, die auf diesem Gerät noch nicht dran waren. Ist der Vorrat leer, beginnt er von vorn. */
+function draw(key, pool, n) {
+  let seen = store.get("seen_" + key, []);
+  let fresh = pool.map((_, i) => i).filter(i => !seen.includes(i));
+  if (fresh.length < n) { seen = []; fresh = pool.map((_, i) => i); }
+  const got = shuffle(fresh).slice(0, n);
+  store.set("seen_" + key, seen.concat(got));
+  return got.map(i => pool[i]);
+}
+
+/* ===================== TON UND STIMME ===================== */
+const S = { voice: store.get("voice", true), sound: store.get("sound", true) };
+let actx = null;
+function tone(freq, dur, type = "square", delay = 0, vol = 0.08) {
+  if (!S.sound) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime + delay;
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + dur);
+  } catch {}
+}
+const sfx = {
+  right() { tone(523, .12); tone(659, .12, "square", .1); tone(784, .25, "square", .2); },
+  wrong() { tone(196, .2, "sawtooth"); tone(147, .4, "sawtooth", .18); },
+  buzz() { tone(110, .25, "sawtooth", 0, .12); },
+  tick() { tone(880, .04, "square", 0, .03); },
+  time() { tone(220, .5, "triangle", 0, .1); },
+  start() { tone(392, .1); tone(523, .1, "square", .1); tone(659, .1, "square", .2); tone(784, .3, "square", .3); }
+};
+let talkTimer = null;
+function say(text, speakText) {
+  $("#say").textContent = text;
+  const b = $("#bubble"); b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop");
+  const host = $("#host");
+  clearTimeout(talkTimer);
+  host.classList.add("talking");
+  talkTimer = setTimeout(() => host.classList.remove("talking"), Math.min(9000, 600 + text.length * 45));
+  if (!S.voice || !("speechSynthesis" in window)) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance((speakText || text).replace(/[„“”"]/g, ""));
+    u.lang = "de-DE"; u.rate = 1.1; u.pitch = 0.85;
+    const v = speechSynthesis.getVoices().find(v => /^de/i.test(v.lang));
+    if (v) u.voice = v;
+    u.onend = () => { clearTimeout(talkTimer); host.classList.remove("talking"); };
+    speechSynthesis.speak(u);
+  } catch {}
+}
+function hush() { try { speechSynthesis.cancel(); } catch {} }
+function syncTools() {
+  $("#tVoice").textContent = S.voice ? "Stimme an" : "Stimme aus"; $("#tVoice").setAttribute("aria-pressed", S.voice);
+  $("#tSound").textContent = S.sound ? "Ton an" : "Ton aus"; $("#tSound").setAttribute("aria-pressed", S.sound);
+  $("#tQuit").hidden = !G;
+}
+
+/* ===================== SPIELZUSTAND ===================== */
+let G = null;                       // laufendes Spiel
+let setup = { mode: store.get("mode", "klassik"), n: store.get("n", 1), names: store.get("names", ["", "", "", ""]) };
+let timer = null;
+const stage = $("#stage");
+function stopTimer() { clearInterval(timer); timer = null; }
+const nameOf = i => G.players[i].name;
+const line = (key, n) => pick(LINES[key]).replace("{n}", n || "");
+
+function renderScores() {
+  const el = $("#scores");
+  if (!G) { el.hidden = true; return; }
+  el.hidden = false;
+  const active = G.c && G.c.answerer != null && G.c.phase !== "reveal" ? G.c.answerer : -1;
+  el.innerHTML = G.players.map((p, i) => {
+    const val = G.mode === "surv"
+      ? `<span class="lives" aria-label="${p.lives} Leben">${"♥".repeat(p.lives)}${"♡".repeat(3 - p.lives)}</span> ${p.score}`
+      : fmt(p.score);
+    return `<div class="chip${i === active ? " on" : ""}${p.score < 0 ? " neg" : ""}${G.mode === "surv" && p.lives <= 0 ? " out" : ""}"><span class="n">${esc(p.name)}</span><span class="s">${val}</span></div>`;
+  }).join("");
+}
+
+/* ===================== SETUP ===================== */
+function showSetup(greet = true) {
+  stopTimer(); hush(); G = null; syncTools(); renderScores();
+  stage.innerHTML = `
+  <div class="card">
+    <div class="group">
+      <span class="label">Spielmodus</span>
+      <div class="modes" role="radiogroup" aria-label="Spielmodus">
+        ${Object.entries(MODES).map(([k, m]) => `<button class="mode" role="radio" data-act="mode" data-v="${k}" aria-checked="${setup.mode === k}"><strong>${m.name}</strong><span>${m.desc}</span></button>`).join("")}
+      </div>
+    </div>
+    <div class="group">
+      <span class="label">Wie viele spielen mit?</span>
+      <div class="count">${[1, 2, 3, 4].map(n => `<button data-act="count" data-v="${n}" aria-pressed="${setup.n === n}">${n}</button>`).join("")}</div>
+    </div>
+    <div class="group">
+      <span class="label">Namen</span>
+      <div class="names">${[0, 1, 2, 3].map(i => `<input type="text" id="p${i}" maxlength="14" placeholder="Spieler ${i + 1}" value="${esc(setup.names[i] || "")}" autocomplete="off"${i >= setup.n ? " hidden" : ""}>`).join("")}</div>
+      <p class="hint">Alle spielen an einem Gerät. Bei mehreren Spielern wird gebuzzert, per Taste oder per Tippen.</p>
+    </div>
+    <button class="btn" data-act="start">Show starten</button>
+  </div>`;
+  if (greet) say(pick(LINES.hello));
+}
+function readNames() { for (let i = 0; i < 4; i++) { const el = $("#p" + i); if (el) setup.names[i] = el.value.trim(); } }
+
+function startGame() {
+  readNames();
+  store.set("mode", setup.mode); store.set("n", setup.n); store.set("names", setup.names);
+  const players = Array.from({ length: setup.n }, (_, i) => ({ name: setup.names[i] || "Spieler " + (i + 1), score: 0, lives: 3 }));
+  const mode = setup.mode;
+  let qs;
+  if (mode === "klassik") qs = draw("mc", MC, 10).map(q => ({ ...q, type: "mc" }));
+  else if (mode === "wq") qs = draw("tf", TF, 12).map(q => ({ ...q, type: "tf" }));
+  else if (mode === "est") qs = draw("est", EST, 6).map(q => ({ ...q, type: "est" }));
+  else qs = shuffle(MC.map(q => ({ ...q, type: "mc" })).concat(TF.map(q => ({ ...q, type: "tf" }))));
+  G = { mode, players, qs, i: -1, turn: -1, c: null, e: null };
+  syncTools(); renderScores(); sfx.start();
+  const m = MODES[mode], multi = players.length > 1;
+  const buzzInfo = multi && (mode === "klassik" || mode === "wq")
+    ? `<p class="hint">Buzzer: ${players.map((p, i) => `<b>${BUZZ_KEYS[i].toUpperCase()}</b> für ${esc(p.name)}`).join(", ")}. Oder den eigenen Buzzer antippen. Antworten per Klick oder mit den Tasten 1 bis 4.</p>` : "";
+  stage.innerHTML = `<div class="card">
+    <div class="eyebrow"><span>So läuft das</span><span>${players.length} ${multi ? "Spieler" : "Spieler, ganz allein"}</span></div>
+    <h2>${m.name}</h2>
+    <div class="list">${m.rules.map(r => `<p>${r}</p>`).join("")}</div>
+    ${buzzInfo}
+    <button class="btn" data-act="next">Erste Frage</button>
+  </div>`;
+  say(m.intro);
+}
+
+/* ===================== ABLAUF ===================== */
+function nextQuestion() {
+  stopTimer();
+  if (G.mode === "surv") {
+    const alive = G.players.filter(p => p.lives > 0).length;
+    if (alive === 0 || (G.players.length > 1 && alive === 1)) return showFinal();
+  }
+  G.i++;
+  if (G.i >= G.qs.length) return showFinal();
+  G.q = G.qs[G.i];
+  if (G.q.type === "est") return startEstimate();
+  startChoice();
+}
+
+/* ---------- Auswahlfragen (vier Antworten, wahr oder Quatsch) ---------- */
+function valueOf() {
+  if (G.mode === "wq") return 500;
+  if (G.mode === "surv") return 1;
+  return G.i < 5 ? 1000 : G.i < 9 ? 2000 : 4000;
+}
+function startChoice() {
+  const q = G.q, multi = G.players.length > 1;
+  const opts = q.type === "mc" ? shuffle(q.a.map((t, i) => ({ t, ok: i === 0 }))) : [{ t: "Wahr", ok: q.t }, { t: "Quatsch", ok: !q.t }];
+  const buzzMode = multi && G.mode !== "surv";
+  let answerer = 0;
+  if (G.mode === "surv") { do { G.turn = (G.turn + 1) % G.players.length; } while (G.players[G.turn].lives <= 0); answerer = G.turn; }
+  const total = G.mode === "wq" ? 10 : G.mode === "surv" ? 15 : 20;
+  G.c = { opts, buzzMode, answerer: buzzMode ? null : answerer, struck: new Set(), locked: new Set(), total, left: total, aLeft: 0, phase: "open", value: valueOf(), chosen: null, lastTick: 99 };
+  renderChoice();
+  const lead = q.type === "mc" ? "Kategorie: " + q.cat + ". " : "";
+  const turnLead = G.mode === "surv" && multi ? nameOf(answerer) + " ist dran. " : "";
+  say(turnLead + (q.type === "mc" ? "Kategorie: " + q.cat + "." : "Wahr oder Quatsch?"), turnLead + lead + q.q);
+  timer = setInterval(tick, 100);
+}
+function tick() {
+  const c = G.c;
+  if (c.phase === "open") {
+    c.left -= 0.1;
+    const s = Math.ceil(c.left);
+    if (s <= 5 && s < c.lastTick && s > 0) { c.lastTick = s; sfx.tick(); }
+    if (c.left <= 0) return onTimeout();
+  } else if (c.phase === "answer") {
+    c.aLeft -= 0.1;
+    if (c.aLeft <= 0) return onWrong(c.answerer, null);
+  }
+  const bar = $("#tbar");
+  if (bar) {
+    const frac = c.phase === "answer" ? c.aLeft / 8 : c.left / c.total;
+    bar.style.width = Math.max(0, frac * 100) + "%";
+    bar.parentElement.classList.toggle("low", frac < 0.3);
+  }
+}
+function renderChoice() {
+  const c = G.c, q = G.q, reveal = c.phase === "reveal";
+  const canAnswer = !reveal && c.answerer != null;
+  const head = G.mode === "surv" ? `Frage ${G.i + 1}` : `Frage ${G.i + 1} von ${G.qs.length}`;
+  const stake = G.mode === "surv" ? (G.players.length > 1 ? "Am Zug: " + esc(nameOf(G.turn)) : "") : fmt(c.value) + " Punkte";
+  const answers = c.opts.map((o, i) => {
+    let cls = "ans";
+    if (reveal) { if (o.ok) cls += " right"; else if (c.chosen === i) cls += " wrong"; else if (c.struck.has(i)) cls += " struck"; }
+    else if (c.struck.has(i)) cls += " struck";
+    else if (!canAnswer) cls += " wait";
+    const off = reveal || !canAnswer || c.struck.has(i);
+    return `<button class="${cls}" data-act="ans" data-v="${i}"${off ? " disabled" : ""}><span class="k">${q.type === "mc" ? "ABCD"[i] : (i ? "Q" : "W")}</span><span>${esc(o.t)}</span></button>`;
+  }).join("");
+  let extra = "";
+  if (c.buzzMode && !reveal) {
+    extra = `<div class="buzzers">${G.players.map((p, i) => `<button class="buzz" data-act="buzz" data-v="${i}"${c.locked.has(i) || c.phase === "answer" ? " disabled" : ""}><span>${esc(p.name)}</span><small>Taste ${BUZZ_KEYS[i].toUpperCase()}</small></button>`).join("")}</div>
+    <p class="hint">${c.phase === "answer" ? esc(nameOf(c.answerer)) + " antwortet. 8 Sekunden." : "Erst buzzern, dann antworten."}</p>`;
+  }
+  if (reveal) {
+    extra = `<div class="fact"><b>${q.type === "tf" ? (q.t ? "Wahr." : "Quatsch.") : "Die Auflösung:"}</b> ${esc(q.f)}</div>
+    <button class="btn" data-act="next">${isLast() ? "Zur Abrechnung" : "Weiter"}</button>`;
+  }
+  stage.innerHTML = `<div class="card">
+    <div class="eyebrow"><span>${q.type === "mc" ? esc(q.cat) : "Wahr oder Quatsch?"}</span><span>${head}${stake ? " · " + stake : ""}</span></div>
+    <p class="question">${esc(q.q)}</p>
+    ${reveal ? "" : `<div class="timer"><i id="tbar"></i></div>`}
+    <div class="answers${q.type === "tf" ? " two" : ""}">${answers}</div>
+    ${extra}
+  </div>`;
+  renderScores();
+  if (reveal) { const b = stage.querySelector('[data-act="next"]'); if (b) b.focus({ preventScroll: true }); }
+}
+function isLast() {
+  if (G.mode === "surv") { const alive = G.players.filter(p => p.lives > 0).length; return alive === 0 || (G.players.length > 1 && alive === 1) || G.i >= G.qs.length - 1; }
+  return G.i >= G.qs.length - 1;
+}
+function onBuzz(i) {
+  const c = G && G.c;
+  if (!c || !c.buzzMode || c.phase !== "open" || c.locked.has(i)) return;
+  c.phase = "answer"; c.answerer = i; c.aLeft = 8;
+  sfx.buzz(); hush(); renderChoice(); say(line("buzz", nameOf(i)));
+}
+function onAnswer(idx) {
+  const c = G && G.c;
+  if (!c || c.phase === "reveal" || c.answerer == null || c.struck.has(idx) || !c.opts[idx]) return;
+  if (c.buzzMode && c.phase !== "answer") return;
+  c.chosen = idx;
+  if (c.opts[idx].ok) {
+    G.players[c.answerer].score += c.value;
+    sfx.right(); reveal(line("right", nameOf(c.answerer)));
+  } else onWrong(c.answerer, idx);
+}
+function onWrong(who, idx) {
+  const c = G.c, p = G.players[who];
+  sfx.wrong();
+  if (G.mode === "surv") { p.lives--; return reveal((idx === null ? pick(LINES.timeout) : line("wrong", p.name)) + " " + pick(LINES.lifeLost) + (p.lives <= 0 ? " " + p.name + " ist raus." : "")); }
+  p.score -= c.value / 2;
+  if (c.buzzMode) {
+    c.locked.add(who); if (idx !== null) c.struck.add(idx);
+    const optsLeft = c.opts.length - c.struck.size, playersLeft = G.players.length - c.locked.size;
+    if (optsLeft > 1 && playersLeft > 0 && c.left > 1.5) {
+      c.phase = "open"; c.answerer = null; c.chosen = null;
+      renderChoice(); say(idx === null ? line("slow", p.name) : line("wrongOn", p.name));
+      return;
+    }
+  }
+  reveal(idx === null ? line("slow", p.name) : line("wrong", p.name));
+}
+function onTimeout() {
+  const c = G.c;
+  sfx.time();
+  if (G.mode === "surv") return onWrong(c.answerer, null);
+  reveal(pick(LINES.timeout));
+}
+function reveal(reaction) {
+  stopTimer();
+  G.c.phase = "reveal";
+  renderChoice();
+  say(reaction, reaction + " " + G.q.f);
+}
+
+/* ---------- Schätzfragen ---------- */
+function startEstimate() {
+  G.c = null;
+  G.e = { guesses: [], cur: 0, stage: G.players.length > 1 ? "pass" : "input" };
+  renderEstimate();
+  say(pick(LINES.estIntro), G.q.q);
+}
+function renderEstimate() {
+  const e = G.e, q = G.q, multi = G.players.length > 1;
+  const head = `<div class="eyebrow"><span>Schätzfrage</span><span>Frage ${G.i + 1} von ${G.qs.length}</span></div><p class="question">${esc(q.q)}</p>`;
+  if (e.stage === "pass") {
+    stage.innerHTML = `<div class="card">${head}
+      <p><b>${esc(nameOf(e.cur))}</b> tippt jetzt. Alle anderen schauen weg.</p>
+      <button class="btn" data-act="estgo">Ich bin ${esc(nameOf(e.cur))}</button></div>`;
+  } else if (e.stage === "input") {
+    stage.innerHTML = `<div class="card">${head}
+      <div class="group"><label class="label" for="guess">${multi ? "Tipp von " + esc(nameOf(e.cur)) : "Dein Tipp"}${q.u ? " in " + q.u : ""}</label>
+      <input class="big" type="text" id="guess" inputmode="numeric" autocomplete="off" placeholder="?"></div>
+      <p class="hint" id="gerr" hidden>Bitte eine Zahl eintippen. Buchstaben zählen hier nicht.</p>
+      <button class="btn" data-act="estok">Tipp abgeben</button></div>`;
+    const inp = $("#guess"); if (inp) inp.focus({ preventScroll: true });
+  } else {
+    const show = n => q.year ? String(n) : fmt(n);
+    const rows = G.players.map((p, i) => ({ i, name: p.name, g: e.guesses[i], d: Math.abs(e.guesses[i] - q.v), pts: e.points[i] })).sort((a, b) => a.d - b.d);
+    stage.innerHTML = `<div class="card">${head}
+      <div><span class="label">Richtig ist</span><div class="bignum">${show(q.v)}${q.u ? ` <small style="font-size:.4em">${q.u}</small>` : ""}</div></div>
+      <div class="list">${rows.map(r => `<div class="line${r.pts > 0 ? " win" : ""}"><span class="who">${esc(r.name)}</span><span class="d">${r.d === 0 ? "exakt" : "daneben um " + show(r.d)}</span><span class="v">${show(r.g)}${r.pts ? " · +" + fmt(r.pts) : ""}</span></div>`).join("")}</div>
+      <div class="fact"><b>Die Auflösung:</b> ${esc(q.f)}</div>
+      <button class="btn" data-act="next">${isLast() ? "Zur Abrechnung" : "Weiter"}</button></div>`;
+    const b = stage.querySelector('[data-act="next"]'); if (b) b.focus({ preventScroll: true });
+  }
+  renderScores();
+}
+function submitGuess() {
+  const e = G.e, raw = ($("#guess").value || "").replace(/[.\s']/g, "").replace(",", ".");
+  const val = Number(raw);
+  if (raw === "" || !isFinite(val)) { $("#gerr").hidden = false; return; }
+  e.guesses[e.cur] = Math.round(val);
+  e.cur++;
+  if (e.cur < G.players.length) { e.stage = "pass"; return renderEstimate(); }
+  scoreEstimate();
+}
+function scoreEstimate() {
+  const e = G.e, q = G.q, diffs = e.guesses.map(g => Math.abs(g - q.v));
+  e.points = diffs.map(() => 0);
+  let text;
+  if (G.players.length > 1) {
+    const best = Math.min(...diffs);
+    const winners = diffs.map((d, i) => d === best ? i : -1).filter(i => i >= 0);
+    winners.forEach(i => { e.points[i] = best === 0 ? 2000 : 1000; });
+    const names = winners.map(nameOf).join(" und ");
+    text = best === 0 ? LINES.estExact.replace("{n}", names) : line("estWin", names);
+  } else {
+    const d = diffs[0];
+    e.points[0] = d === 0 ? 1500 : d <= q.tol ? 1000 : d <= q.tol * 3 ? 400 : 0;
+    text = d === 0 ? LINES.estExact.replace("{n}", nameOf(0)) : pick(d <= q.tol ? LINES.estSoloGood : d <= q.tol * 3 ? LINES.estSoloMeh : LINES.estSoloBad);
+  }
+  e.points.forEach((p, i) => { G.players[i].score += p; });
+  if (e.points.some(p => p > 0)) sfx.right(); else sfx.wrong();
+  e.stage = "reveal";
+  renderEstimate();
+  say(text, text + " " + q.f);
+}
+
+/* ===================== ABRECHNUNG ===================== */
+function showFinal() {
+  stopTimer();
+  const surv = G.mode === "surv", multi = G.players.length > 1;
+  const rank = G.players.map(p => ({ ...p })).sort((a, b) => surv ? (b.lives - a.lives) || (b.score - a.score) : b.score - a.score);
+  const top = rank[0];
+  const tie = multi && rank[1] && (surv ? rank[1].lives === top.lives && rank[1].score === top.score : rank[1].score === top.score);
+  let verdict, extra = "";
+  if (surv && !multi) {
+    const best = store.get("best", 0), now = top.score;
+    if (now > best) store.set("best", now);
+    extra = `<p class="hint">${now > best ? "Neuer Bestwert auf diesem Gerät." : "Bestwert auf diesem Gerät: " + best + "."}</p>`;
+    verdict = top.lives > 0 ? `Du hast alle Fragen überlebt, ${top.name}. Ich habe keine mehr. Das ist mir noch nie passiert, und ich nehme es persönlich.`
+      : now === 0 ? `Null richtige Antworten, ${top.name}. Das schafft man statistisch kaum. Respekt, auf eine Art.`
+      : now < 8 ? `${now} richtige Antworten, dann war Schluss. Für einen Menschen ohne Vorbereitung und offenbar ohne Schulbildung ganz ordentlich.`
+      : now < 20 ? `${now} richtige Antworten. Solide, ${top.name}. Du bist jetzt offiziell die Person, neben der auf Partys niemand sitzen will.`
+      : `${now} richtige Antworten. ${top.name}, du brauchst dringend frische Luft. Aber gut gemacht.`;
+  } else if (tie) {
+    verdict = "Gleichstand an der Spitze. Ihr seid also alle gleich schlecht. Oder gleich gut, falls ihr das lieber hört.";
+  } else if (multi) {
+    const last = rank[rank.length - 1];
+    verdict = surv ? `${top.name} hat als Letztes noch gestanden und gewinnt. ${last.name}, du warst auch da.`
+      : top.score <= 0 ? `${top.name} gewinnt mit ${fmt(top.score)} Punkten. Gewinnen ist hier ein großes Wort. Ihr solltet euch alle schämen.`
+      : `${top.name} gewinnt mit ${fmt(top.score)} Punkten. ${last.name}, ${last.score < 0 ? "du schuldest mir Geld" : "du warst bemüht"}.`;
+  } else {
+    const s = top.score, max = G.mode === "klassik" ? 17000 : G.mode === "wq" ? 6000 : 9000;
+    verdict = s < 0 ? `${fmt(s)} Punkte, ${top.name}. Minuspunkte. Hättest du gar nichts gedrückt, wärst du besser gewesen.`
+      : s < max * 0.35 ? `${fmt(s)} Punkte. Sagen wir so, ${top.name}: Dabei sein ist alles. Muss es in deinem Fall auch.`
+      : s < max * 0.7 ? `${fmt(s)} Punkte. Ordentlich, ${top.name}. Nicht gut, nicht schlecht. Wie Kantinenessen.`
+      : `${fmt(s)} Punkte! ${top.name}, entweder bist du schlau oder du hast die Fragen geschrieben. Glückwunsch.`;
+  }
+  const modeName = MODES[G.mode].name;
+  stage.innerHTML = `<div class="card">
+    <div class="eyebrow"><span>Abrechnung</span><span>${modeName}</span></div>
+    <h2>${tie ? "Unentschieden" : multi ? esc(top.name) + " gewinnt" : "Feierabend"}</h2>
+    <div class="list">${rank.map((p, i) => `<div class="line${i === 0 && !tie ? " win" : ""}"><span class="who">${i + 1}. ${esc(p.name)}</span><span class="d">${surv ? (p.lives > 0 ? p.lives + " Leben übrig" : "ausgeschieden") : ""}</span><span class="v">${surv ? p.score + " richtig" : fmt(p.score)}</span></div>`).join("")}</div>
+    ${extra}
+    <div class="row"><button class="btn" data-act="again">Nochmal</button><button class="btn ghost" data-act="menu">Anderer Modus</button></div>
+  </div>`;
+  G.c = null; G.done = true;
+  $("#scores").hidden = true;
+  sfx.start();
+  say(verdict);
+}
+
+/* ===================== EINGABEN ===================== */
+document.addEventListener("click", ev => {
+  const el = ev.target.closest("[data-act]");
+  if (!el || el.disabled) return;
+  const act = el.dataset.act, v = el.dataset.v;
+  if (act === "voice") { S.voice = !S.voice; store.set("voice", S.voice); if (!S.voice) hush(); syncTools(); }
+  else if (act === "sound") { S.sound = !S.sound; store.set("sound", S.sound); syncTools(); }
+  else if (act === "quit" || act === "menu") showSetup(true);
+  else if (act === "mode") { readNames(); setup.mode = v; showSetup(false); say(MODES[v].name + ". " + MODES[v].desc); }
+  else if (act === "count") { readNames(); setup.n = Number(v); showSetup(false); }
+  else if (act === "start" || act === "again") { if (act === "again") { G = null; } startGame(); }
+  else if (act === "next") { hush(); nextQuestion(); }
+  else if (act === "buzz") onBuzz(Number(v));
+  else if (act === "ans") onAnswer(Number(v));
+  else if (act === "estgo") { G.e.stage = "input"; renderEstimate(); }
+  else if (act === "estok") submitGuess();
+});
+document.addEventListener("keydown", ev => {
+  if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  const inField = ev.target.tagName === "INPUT";
+  if (inField) { if (ev.key === "Enter" && ev.target.id === "guess") { ev.preventDefault(); submitGuess(); } return; }
+  if (!G || !G.c || G.c.phase === "reveal") return;
+  const k = ev.key.toLowerCase();
+  const b = BUZZ_KEYS.indexOf(k);
+  if (b >= 0 && b < G.players.length && G.c.buzzMode && G.c.phase === "open") { ev.preventDefault(); return onBuzz(b); }
+  if (/^[1-4]$/.test(k)) { ev.preventDefault(); onAnswer(Number(k) - 1); }
+});
+if ("speechSynthesis" in window) { try { speechSynthesis.getVoices(); } catch {} }
+
+syncTools();
+showSetup(true);
+</script>
+</body>
+</html>
