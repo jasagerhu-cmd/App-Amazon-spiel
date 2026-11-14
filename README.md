@@ -42,7 +42,7 @@ Zweites Spiel im selben Repo: eine Quizshow mit skurrilen, wahren Fakten aus all
 Bei mehreren Spielern wird gebuzzert: Tasten Q, P, X, M oder den eigenen Buzzer antippen. Antworten per Klick oder mit den Tasten 1–4.
 
 ## Kommentator
-Kalle ist eine 3D-Figur (three.js, von cdnjs geladen). Ohne Internet oder ohne WebGL erscheint stattdessen die gezeichnete Figur.
+Die Bühne ist eine 3D-Szene (three.js r128 von cdnjs, Leuchteffekt-Skripte von jsDelivr): Kalle auf dem Podest, spiegelnder Boden, Lichtwand, Scheinwerferkegel, Konfetti und Kamerafahrten. Schafft ein Gerät die Bildrate nicht, senkt das Spiel erst die Auflösung und schaltet dann den Leuchteffekt ab. Ohne Internet oder ohne WebGL erscheint stattdessen die gezeichnete Figur.
 
 Der Text steht in der Sprechblase. Die Stimme kommt aus der Sprachausgabe des Geräts und lässt sich oben abschalten. Das Spiel wählt automatisch eine deutsche Männerstimme, wenn das Gerät eine hat; im Menü unter „Kalles Stimme“ lässt sich eine andere wählen und probehören.
 
