@@ -15,8 +15,11 @@ Nach jeder Runde entsteht ein Bild (1080 × 1350) mit Produktfoto, echtem Preis,
 Die Produkte stehen als Liste `PRODUCTS` oben im `<script>` von `index.html` (Emoji, Kategorie, Name, Beschreibung, Preis in €).
 Die Preise sind Richtwerte und veralten. Nach jeder Runde gibt es einen Link, um den aktuellen Preis auf amazon.de nachzuschlagen.
 
-## Warum keine echten Live-Daten von Amazon?
-Amazon bietet keine offene Schnittstelle für „zufällige Produkte mit Preis“.
-- Scraping verstößt gegen die Nutzungsbedingungen und wird schnell per Captcha geblockt.
-- Die offizielle Product Advertising API setzt ein Partnerprogramm-Konto mit regelmäßigen Verkäufen voraus und läuft über einen Server (Schlüssel dürfen nicht in den Browser).
-Wer das Konto hat, kann die `PRODUCTS`-Liste über einen kleinen Backend-Dienst befüllen.
+## eBay-Live-Modus
+Zufällige Produkte mit Foto, Preis und Link direkt von ebay.de (Neuware, Sofort-Kaufen). Braucht einen kostenlosen eBay-Entwicklerzugang und einen kleinen Cloudflare Worker, der die Schlüssel hält. Anleitung: [worker/README.md](worker/README.md).
+
+Die Vorschau auf claude.ai kann diesen Modus nicht nutzen (die Plattform sperrt Verbindungen zu fremden Servern). Dafür das Spiel über GitHub Pages veröffentlichen.
+
+## Warum nicht Amazon oder Idealo?
+- Amazon: Die Product Advertising API wurde 2026 durch die Creators API ersetzt. Zugang nur mit Amazon-Partnerprogramm-Konto, das echte Verkäufe nachweisen muss. Scraping verstößt gegen die Nutzungsbedingungen.
+- Idealo: keine öffentliche Schnittstelle zum Lesen von Preisen, nur Händler-Schnittstellen zum Hochladen.

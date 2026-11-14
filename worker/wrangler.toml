@@ -1,0 +1,10 @@
+name = "preis-raten-ebay"
+main = "worker.js"
+compatibility_date = "2025-10-01"
+
+# Schlüssel NICHT hier eintragen, sondern als Secrets setzen:
+#   npx wrangler secret put EBAY_CLIENT_ID
+#   npx wrangler secret put EBAY_CLIENT_SECRET
+# Optional: Zugriff nur von deiner GitHub-Pages-Seite erlauben
+# [vars]
+# ALLOWED_ORIGIN = "https://DEIN-GITHUB-NAME.github.io"

@@ -248,6 +248,11 @@ const PRODUCTS = [
   { e:"☕", c:"Küche", n:"Nespresso Vertuo Pop", d:"Kapselmaschine von Krups", p:69.99 }
 ];
 
+/* ---------- eBay-Live-Modus ----------
+   Adresse deines Cloudflare Workers (Anleitung: worker/README.md), z. B.
+   "https://preis-raten-ebay.DEINNAME.workers.dev". Leer lassen = Adresse im Spiel eintragen. */
+const EBAY_ENDPOINT = "";
+
 /* ---------- Hilfsfunktionen ---------- */
 const $ = (sel) => document.querySelector(sel);
 const app = $("#app");
@@ -325,6 +330,30 @@ function saveCustom(list) {
 }
 let custom = loadCustom();
 
+const ENDPOINT_KEY = "preisraten.ebay.endpoint";
+function loadEndpoint() {
+  try { return localStorage.getItem(ENDPOINT_KEY) || EBAY_ENDPOINT; } catch { return EBAY_ENDPOINT; }
+}
+function saveEndpoint(v) { try { localStorage.setItem(ENDPOINT_KEY, v); } catch {} }
+/* In der claude.ai-Vorschau blockiert die Plattform Anfragen an fremde Server */
+const IN_CLAUDE_VIEWER = Boolean(window.claude && window.claude.use);
+
+async function fetchEbayProducts(endpoint, count) {
+  const base = endpoint.trim().replace(/\/+$/, "");
+  let res;
+  try {
+    res = await fetch(`${base}/random?count=${count}`);
+  } catch {
+    throw new Error("Der eBay-Dienst ist nicht erreichbar. Stimmt die Adresse, und ist der Worker veröffentlicht?");
+  }
+  let body = {};
+  try { body = await res.json(); } catch {}
+  if (!res.ok) throw new Error(body.error || `Der eBay-Dienst antwortet mit Fehler ${res.status}.`);
+  const items = (body.items || []).filter((it) => it && it.n && isFinite(it.p) && it.p > 0);
+  if (!items.length) throw new Error("eBay hat keine Produkte geliefert. Bitte nochmal versuchen.");
+  return items.map((it) => ({ e: "🛒", c: it.c || "eBay", n: it.n, d: it.d || "", p: +it.p, u: it.u, img: it.img }));
+}
+
 /* ---------- Spielzustand ---------- */
 let state = {
   screen: "setup",       // setup | products | intro | handover | guess | reveal | final
@@ -333,6 +362,7 @@ let state = {
   totalRounds: 10,
   useDefault: true,
   useCustom: true,
+  useEbay: false,
   deck: [],
   round: 0,
   guesses: [],
@@ -532,6 +562,17 @@ function setup() {
       <label class="check"><input type="checkbox" id="useCustom" ${state.useCustom ? "checked" : ""}> Eigene Produkte mit Foto und Link (${custom.length})</label>
       <div class="actions"><button class="ghost" id="manage">Eigene Produkte verwalten</button></div>
     </section>
+    <section class="panel">
+      <h2>Zufällige Produkte von eBay</h2>
+      ${IN_CLAUDE_VIEWER
+        ? `<p class="hint">In dieser Vorschau auf claude.ai gesperrt, weil die Plattform keine Verbindungen zu fremden Servern erlaubt. Nutze die Version auf GitHub Pages.</p>`
+        : `<label class="check"><input type="checkbox" id="useEbay" ${state.useEbay ? "checked" : ""}> Live von ebay.de ziehen (Neuware, Sofort-Kaufen, mit Foto)</label>
+           <p class="hint">Ersetzt die beiden Listen oben. Preise ohne Versand.</p>
+           <div class="field">
+             <label class="label" for="endpoint">Adresse des eBay-Dienstes</label>
+             <input type="url" id="endpoint" value="${esc(loadEndpoint())}" placeholder="https://preis-raten-ebay.….workers.dev">
+           </div>`}
+    </section>
     <div class="error" id="err"></div>
     <div class="actions"><button class="primary" id="start">Spiel starten</button></div>`;
 
@@ -540,6 +581,8 @@ function setup() {
     state.totalRounds = +$("#rounds").value;
     state.useDefault = $("#useDefault").checked;
     state.useCustom = $("#useCustom").checked;
+    state.useEbay = Boolean($("#useEbay")?.checked);
+    if ($("#endpoint")) saveEndpoint($("#endpoint").value.trim());
   };
   $("#add").onclick = () => { readForm(); state.players.push(`Spieler ${state.players.length + 1}`); render(); $("#p" + (state.players.length - 1)).select(); };
   app.querySelectorAll("[data-remove]").forEach((b) => b.onclick = () => { readForm(); state.players.splice(+b.dataset.remove, 1); render(); });
@@ -549,15 +592,34 @@ function setup() {
     const names = state.players.map((n) => n.trim());
     if (names.some((n) => !n)) { $("#err").textContent = "Jeder Spieler braucht einen Namen."; return; }
     if (new Set(names.map((n) => n.toLowerCase())).size !== names.length) { $("#err").textContent = "Zwei Spieler heißen gleich. Bitte unterschiedliche Namen vergeben."; return; }
-    const available = pool();
-    if (!available.length) { $("#err").textContent = "Keine Produkte ausgewählt. Hake die Standardliste an oder lege eigene Produkte an."; return; }
+    if (state.useEbay && !loadEndpoint().trim()) { $("#err").textContent = "Bitte die Adresse des eBay-Dienstes eintragen."; return; }
+    if (!state.useEbay && !pool().length) { $("#err").textContent = "Keine Produkte ausgewählt. Hake die Standardliste an oder lege eigene Produkte an."; return; }
     state.players = names;
-    state.totalRounds = Math.min(state.totalRounds, available.length);
-    newGame(available);
+    startGame($("#start"), $("#err"));
   };
 }
 
-function newGame(available = pool()) {
+/* Deck zusammenstellen (bei eBay live laden) und Spiel beginnen */
+async function startGame(button, errorEl) {
+  let available;
+  if (state.useEbay) {
+    const label = button.textContent;
+    button.disabled = true; button.textContent = "Lade Produkte von eBay …";
+    try {
+      available = await fetchEbayProducts(loadEndpoint(), state.totalRounds);
+    } catch (e) {
+      errorEl.textContent = e.message;
+      button.disabled = false; button.textContent = label;
+      return;
+    }
+  } else {
+    available = pool();
+  }
+  state.totalRounds = Math.min(state.totalRounds, available.length);
+  newGame(available);
+}
+
+function newGame(available) {
   state.scores = state.players.map(() => 0);
   state.deck = shuffle(available).slice(0, state.totalRounds);
   state.history = [];
@@ -842,11 +904,12 @@ function final() {
       <p class="label">Alle Produkte dieses Spiels</p>
       <div class="gallery">${gallery}</div>
     </section>
+    <div class="error" id="err"></div>
     <div class="actions">
       <button class="primary" id="again">Nochmal mit denselben Spielern</button>
       <button class="ghost" id="new">Neues Spiel einrichten</button>
     </div>`;
-  $("#again").onclick = () => newGame();
+  $("#again").onclick = () => startGame($("#again"), $("#err"));
   $("#new").onclick = () => { state.screen = "setup"; render(); };
 }
 
