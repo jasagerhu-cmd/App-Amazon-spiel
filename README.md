@@ -42,7 +42,9 @@ Zweites Spiel im selben Repo: eine Quizshow mit skurrilen, wahren Fakten aus all
 Bei mehreren Spielern wird gebuzzert: Tasten Q, P, X, M oder den eigenen Buzzer antippen. Antworten per Klick oder mit den Tasten 1–4.
 
 ## Kommentator
-Der Text steht in der Sprechblase. Die Stimme kommt aus der Sprachausgabe des Browsers (deutsche Systemstimme) und lässt sich oben abschalten.
+Kalle ist eine 3D-Figur (three.js, von cdnjs geladen). Ohne Internet oder ohne WebGL erscheint stattdessen die gezeichnete Figur.
+
+Der Text steht in der Sprechblase. Die Stimme kommt aus der Sprachausgabe des Geräts und lässt sich oben abschalten. Das Spiel wählt automatisch eine deutsche Männerstimme, wenn das Gerät eine hat; im Menü unter „Kalles Stimme“ lässt sich eine andere wählen und probehören.
 
 ## Fragen ergänzen
 Die Fragen stehen oben im `<script>` von `quiz.html` in drei Listen: `MC` (richtige Antwort immer an erster Stelle, gemischt wird beim Spielen), `TF` (wahr/Quatsch) und `EST` (Schätzfragen mit Zielwert und Toleranz). Jede Frage hat eine Auflösung `f`, die der Kommentator vorliest.
