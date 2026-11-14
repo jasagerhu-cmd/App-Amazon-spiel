@@ -49,4 +49,4 @@ Der Text steht in der Sprechblase. Die Stimme kommt aus der Sprachausgabe des Ge
 ## Fragen ergänzen
 Die Fragen stehen oben im `<script>` von `quiz.html` in drei Listen: `MC` (richtige Antwort immer an erster Stelle, gemischt wird beim Spielen), `TF` (wahr/Quatsch) und `EST` (Schätzfragen mit Zielwert und Toleranz). Jede Frage hat eine Auflösung `f`, die der Kommentator vorliest.
 
-Die Fakten sind aus dem Gedächtnis zusammengestellt und nicht einzeln gegen Quellen geprüft.
+Faktencheck (November 2026): Rund 60 der 108 Fragen wurden per Websuche gegengeprüft, vor allem die mit Zahlen, Jahreszahlen und Anekdoten; die Auflösungen wurden entsprechend korrigiert. Die übrigen sind verbreitetes Allgemeinwissen und nicht einzeln nachgeschlagen.
