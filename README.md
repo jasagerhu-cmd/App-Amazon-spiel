@@ -13,7 +13,7 @@ Nach jeder Runde entsteht ein Bild (1080 × 1350) mit Produktfoto, echtem Preis,
 
 ## Standard-Produktliste
 Die Produkte stehen als Liste `PRODUCTS` oben im `<script>` von `index.html` (Emoji, Kategorie, Name, Beschreibung, Preis in €).
-Die Preise sind Richtwerte und veralten. Nach jeder Runde gibt es einen Link, um den aktuellen Preis auf amazon.de nachzuschlagen.
+Die Preise sind ungeprüfte Richtwerte. Deshalb kommt bei Produkten aus dieser Liste nach den Tipps ein Prüfschritt: Der Spielleiter schlägt den Preis nach und trägt ihn ein, erst dann wird gewertet. Korrigierte Preise merkt sich das Spiel auf dem Gerät.
 
 ## eBay-Live-Modus
 Zufällige Produkte mit Foto, Preis und Link direkt von ebay.de (Neuware, Sofort-Kaufen). Braucht einen kostenlosen eBay-Entwicklerzugang und einen kleinen Cloudflare Worker, der die Schlüssel hält. Anleitung: [worker/README.md](worker/README.md).

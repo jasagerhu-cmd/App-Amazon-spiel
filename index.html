@@ -160,7 +160,7 @@ footer { color: var(--muted); font-size: .8rem; text-align: center; }
     <div class="meta" id="status"></div>
   </header>
   <div id="app"></div>
-  <footer>Preise der Standardliste sind Richtwerte (Stand Herbst 2026) und schwanken im Handel täglich. Ohne Gewähr.</footer>
+  <footer>Die Preise der Standardliste sind ungeprüfte Richtwerte. Prüft sie vor jeder Auflösung im Shop; korrigierte Preise merkt sich das Spiel auf diesem Gerät.</footer>
 </main>
 
 <script>
@@ -372,8 +372,21 @@ let state = {
 const shots = {};        // Runde -> { url, blob }   (nicht im Snapshot)
 let draft = { n: "", p: "", u: "", d: "", img: "" };
 
+/* Vom Spielleiter geprüfte Preise der Standardliste, gemerkt pro Produktname */
+const CHECK_KEY = "preisraten.checked.v1";
+function loadChecked() { try { return JSON.parse(localStorage.getItem(CHECK_KEY) || "{}"); } catch { return {}; } }
+function saveChecked(name, p) {
+  const all = loadChecked(); all[name] = { p, date: new Date().toISOString().slice(0, 10) };
+  try { localStorage.setItem(CHECK_KEY, JSON.stringify(all)); } catch {}
+}
+
 function pool() {
-  return [...(state.useDefault ? PRODUCTS : []), ...(state.useCustom ? custom : [])];
+  const checked = loadChecked();
+  const list = PRODUCTS.map((prod) => {
+    const c = checked[prod.n];
+    return { ...prod, list: true, p: c ? c.p : prod.p, checkedOn: c ? c.date : "" };
+  });
+  return [...(state.useDefault ? list : []), ...(state.useCustom ? custom : [])];
 }
 
 function setStatus() {
@@ -530,7 +543,7 @@ async function makeShot(r) {
 /* ---------- Bildschirme ---------- */
 function render() {
   setStatus();
-  ({ setup, products, intro, handover, guess, reveal, final })[state.screen]();
+  ({ setup, products, intro, handover, guess, check, reveal, final })[state.screen]();
   wireImageFallbacks();
 }
 
@@ -558,7 +571,7 @@ function setup() {
     </section>
     <section class="panel">
       <h2>Produkte</h2>
-      <label class="check"><input type="checkbox" id="useDefault" ${state.useDefault ? "checked" : ""}> Standardliste (${PRODUCTS.length} Produkte, ohne Fotos)</label>
+      <label class="check"><input type="checkbox" id="useDefault" ${state.useDefault ? "checked" : ""}> Standardliste (${PRODUCTS.length} Produkte, Preise vor dem Auflösen prüfen)</label>
       <label class="check"><input type="checkbox" id="useCustom" ${state.useCustom ? "checked" : ""}> Eigene Produkte mit Foto und Link (${custom.length})</label>
       <div class="actions"><button class="ghost" id="manage">Eigene Produkte verwalten</button></div>
     </section>
@@ -772,6 +785,7 @@ function guess() {
     state.guesses[state.turn] = v;
     state.turn++;
     if (state.turn < state.players.length) state.screen = "handover";
+    else if (prod.list) state.screen = "check";
     else { scoreRound(); state.screen = "reveal"; }
     render();
   };
@@ -784,6 +798,42 @@ function scoreRound() {
   const winners = diffs.map((d, i) => (Math.abs(d - best) < 0.005 ? i : -1)).filter((i) => i >= 0);
   winners.forEach((i) => state.scores[i]++);
   state.history[state.round] = { guesses: state.guesses.slice(), winners };
+}
+
+/* Preis-Check: Alle Tipps sind gespeichert, der Spielleiter gleicht den Preis mit dem Shop ab */
+function check() {
+  const prod = state.deck[state.round];
+  const source = prod.checkedOn
+    ? `Zuletzt von euch geprüft am ${new Date(prod.checkedOn).toLocaleDateString("de-DE")}`
+    : "Ungeprüfter Richtwert aus der Liste, kann deutlich abweichen";
+  app.innerHTML = `
+    ${progressBar()}
+    <form class="panel" id="cf" autocomplete="off">
+      <p class="label">Alle Tipps sind abgegeben</p>
+      <h2>Preis prüfen: ${esc(prod.n)}</h2>
+      <p class="hint">Einer öffnet den Artikel im Shop und trägt den Preis ein, der dort jetzt steht. Die Tipps sind schon gespeichert und lassen sich nicht mehr ändern.</p>
+      <p><a href="${esc(linkFor(prod))}" target="_blank" rel="noopener">Bei Amazon suchen ↗</a></p>
+      <div class="field">
+        <label class="label" for="cp">Aktueller Preis</label>
+        <div class="euro-row">
+          <input class="big" id="cp" type="text" inputmode="decimal" value="${prod.p.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}">
+          <span aria-hidden="true">€</span>
+        </div>
+        <p class="hint">${source}. Unverändert lassen, wenn niemand nachschauen will.</p>
+      </div>
+      <div class="error" id="err"></div>
+      <div class="actions"><button class="primary" type="submit">Auflösen</button></div>
+    </form>`;
+  $("#cf").onsubmit = (ev) => {
+    ev.preventDefault();
+    const v = parsePrice($("#cp").value);
+    if (!isFinite(v) || v <= 0) { $("#err").textContent = "Bitte einen gültigen Preis eingeben, z. B. 199,99."; return; }
+    if (Math.abs(v - prod.p) >= 0.005) {
+      prod.p = v; prod.checkedOn = new Date().toISOString().slice(0, 10);
+      saveChecked(prod.n, v);
+    }
+    scoreRound(); state.screen = "reveal"; render();
+  };
 }
 
 function reveal() {
