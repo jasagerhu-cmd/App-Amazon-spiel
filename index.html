@@ -787,7 +787,15 @@ async function showShot(r) {
   $("#shotbox").innerHTML = `<img src="${url}" alt="Ergebnisbild Runde ${r + 1}: ${esc(state.deck[r].n)}, ${eur(state.deck[r].p)}">`;
   $("#shotactions").hidden = false;
   const msg = (t) => { $("#shotmsg").textContent = t; };
-  $("#dl").onclick = () => {
+  $("#dl").onclick = async () => {
+    // Im Claude-Viewer über die Download-Funktion des Viewers, sonst normaler Download
+    const dl = window.claude?.use ? await window.claude.use("downloads").catch(() => null) : null;
+    if (dl) {
+      dl.save({ filename: fileName, data: blob })
+        .then(() => msg("Bild gespeichert."))
+        .catch((e) => { if (e?.code !== "declined") msg("Speichern geht hier nicht. Halte das Bild gedrückt oder nutze Rechtsklick."); });
+      return;
+    }
     const a = document.createElement("a"); a.href = url; a.download = fileName;
     document.body.appendChild(a); a.click(); a.remove();
   };
