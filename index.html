@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Preis-Raten</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: eine zentrale Spielfläche (max 640px); das Produkt ist ein Preisschild-Etikett, die Preise stehen in Mono. */
+:root {
+  --bg: #eef1f6;
+  --surface: #ffffff;
+  --ink: #16213a;
+  --muted: #5b6680;
+  --line: #d5dbe7;
+  --tag: #ffcb3d;        /* Preisetikett-Gelb */
+  --tag-ink: #2a1f00;
+  --accent: #2448d8;     /* Knöpfe */
+  --accent-ink: #ffffff;
+  --win: #128a4a;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1524; --surface: #18213a; --ink: #e8ecf6; --muted: #9aa5c0; --line: #2b3656;
+    --tag: #ffcb3d; --tag-ink: #2a1f00; --accent: #6f8cff; --accent-ink: #0b1020; --win: #3ccf7f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1524; --surface: #18213a; --ink: #e8ecf6; --muted: #9aa5c0; --line: #2b3656;
+  --tag: #ffcb3d; --tag-ink: #2a1f00; --accent: #6f8cff; --accent-ink: #0b1020; --win: #3ccf7f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 48px;
+}
+main { max-width: 640px; margin: 0 auto; display: grid; gap: 20px; }
+header.top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+h1 { font-family: var(--font-display); font-weight: 800; font-size: 2rem; margin: 0; letter-spacing: -0.02em; }
+h1 span { background: var(--tag); color: var(--tag-ink); padding: 0 .3em; border-radius: 4px; }
+h2 { font-family: var(--font-display); font-weight: 800; font-size: 1.5rem; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+.meta { font-family: var(--font-mono); font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: grid; gap: 16px; }
+.label { font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+p { margin: 0; }
+.hint { color: var(--muted); font-size: .9rem; }
+
+/* Preisschild */
+.tag {
+  position: relative; background: var(--tag); color: var(--tag-ink);
+  border-radius: 10px 10px 10px 10px; padding: 24px 22px 22px 46px;
+  display: grid; gap: 8px;
+}
+.tag::before { /* Loch im Etikett */
+  content: ""; position: absolute; left: 16px; top: 26px; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--bg); box-shadow: inset 0 0 0 2px rgba(0,0,0,.18);
+}
+.tag .emoji { font-size: 3.4rem; line-height: 1; }
+.tag .cat { font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; font-weight: 600; opacity: .7; }
+.tag .name { font-family: var(--font-display); font-weight: 800; font-size: 1.45rem; line-height: 1.15; text-wrap: balance; }
+.tag .desc { font-size: .95rem; opacity: .85; }
+.tag .price { font-family: var(--font-mono); font-weight: 700; font-size: 2.2rem; font-variant-numeric: tabular-nums; border-top: 2px dashed rgba(0,0,0,.25); padding-top: 10px; margin-top: 4px; }
+.tag .price.hidden { letter-spacing: .1em; }
+
+/* Formulare */
+.field { display: grid; gap: 6px; }
+input[type="text"], input[type="number"], select {
+  font: inherit; font-size: 1rem; padding: 12px 14px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink); width: 100%; min-width: 0;
+}
+input.big { font-family: var(--font-mono); font-size: 1.8rem; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.players { display: grid; gap: 8px; }
+.player-row { display: flex; gap: 8px; }
+.player-row input { flex: 1; }
+.euro-row { display: flex; align-items: center; gap: 10px; }
+.euro-row input { flex: 1; }
+.euro-row span { font-family: var(--font-mono); font-size: 1.8rem; font-weight: 700; }
+
+button {
+  font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 12px 18px; cursor: pointer;
+  background: var(--accent); color: var(--accent-ink);
+}
+button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+button.icon { padding: 0 14px; background: transparent; color: var(--muted); border: 1px solid var(--line); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.actions button.primary { flex: 1; font-size: 1.05rem; padding: 14px 18px; }
+.error { color: #c0392b; font-size: .9rem; min-height: 1.2em; }
+
+/* Übergabe-Bildschirm */
+.handover { text-align: center; padding: 40px 20px; }
+.handover .who { font-family: var(--font-display); font-weight: 800; font-size: 2.4rem; }
+
+/* Ergebnis-Tabelle */
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 10px 6px; border-bottom: 1px solid var(--line); }
+th { font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+td.num, th.num { text-align: right; font-family: var(--font-mono); }
+tr.winner td { color: var(--win); font-weight: 700; }
+.pill { display: inline-block; font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: var(--win); color: var(--surface); margin-left: 6px; vertical-align: middle; }
+.scroll { overflow-x: auto; }
+.progress { display: flex; gap: 4px; }
+.progress i { flex: 1; height: 6px; border-radius: 3px; background: var(--line); }
+.progress i.done { background: var(--accent); }
+.progress i.now { background: var(--tag); }
+a { color: var(--accent); }
+.podium { font-family: var(--font-display); font-weight: 800; font-size: 1.8rem; text-align: center; text-wrap: balance; }
+footer { color: var(--muted); font-size: .8rem; text-align: center; }
+@media (prefers-reduced-motion: no-preference) {
+  .reveal { animation: pop .35s ease-out; }
+  @keyframes pop { from { transform: scale(.94); opacity: .4; } to { transform: scale(1); opacity: 1; } }
+}
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <h1><span>Preis</span>-Raten</h1>
+    <div class="meta" id="status"></div>
+  </header>
+  <div id="app"></div>
+  <footer>Preise sind Richtwerte (Stand Herbst 2026) und schwanken im Handel täglich. Ohne Gewähr.</footer>
+</main>
+
+<script>
+/* ---------- Produktdaten ----------
+   Preis in Euro, Richtwert für den deutschen Online-Handel.
+   Eigene Produkte einfach hier ergänzen. */
+const PRODUCTS = [
+  { e:"🎧", c:"Elektronik", n:"Apple AirPods Pro 2 (USB-C)", d:"In-Ear-Kopfhörer mit aktiver Geräuschunterdrückung", p:199 },
+  { e:"🚀", c:"Spielzeug", n:"LEGO Star Wars Millennium Falcon (75192)", d:"Ultimate Collector Series, 7.541 Teile", p:799 },
+  { e:"🥤", c:"Haushalt", n:"Stanley Quencher H2.0 Becher, 1,18 l", d:"Isolierbecher mit Griff und Strohhalm", p:45 },
+  { e:"🎮", c:"Gaming", n:"Nintendo Switch 2", d:"Konsole, ohne Spiel", p:469 },
+  { e:"🧹", c:"Haushalt", n:"Dyson V15 Detect Absolute", d:"Akku-Staubsauger mit Laser-Staubanzeige", p:649 },
+  { e:"📖", c:"Elektronik", n:"Kindle Paperwhite (16 GB)", d:"E-Reader, 7-Zoll-Display, mit Werbung", p:169.99 },
+  { e:"🐻", c:"Lebensmittel", n:"HARIBO Goldbären, 10 × 175 g", d:"Fruchtgummi im Vorratspack", p:13.99 },
+  { e:"🪥", c:"Drogerie", n:"Oral-B iO Series 9", d:"Elektrische Zahnbürste mit Reiseetui", p:249 },
+  { e:"🍟", c:"Küche", n:"Ninja Foodi MAX Dual Zone AF400EU", d:"Heißluftfritteuse mit zwei Körben, 9,5 l", p:199 },
+  { e:"🪛", c:"Werkzeug", n:"Bosch Professional GSR 12V-15", d:"Akku-Bohrschrauber, 2 Akkus, Koffer", p:139 },
+  { e:"🐊", c:"Mode", n:"Crocs Classic Clog", d:"Unisex-Clogs, diverse Farben", p:49.99 },
+  { e:"🧻", c:"Drogerie", n:"Zewa Soft Toilettenpapier, 24 Rollen", d:"4-lagig", p:13.49 },
+  { e:"🧊", c:"Spielzeug", n:"Rubik's Cube 3×3", d:"Der Original-Zauberwürfel", p:12.99 },
+  { e:"🔊", c:"Elektronik", n:"Amazon Echo Dot (5. Gen.)", d:"Smarter Lautsprecher mit Alexa", p:59.99 },
+  { e:"📺", c:"Elektronik", n:"Fire TV Stick 4K", d:"Streaming-Stick mit Sprachfernbedienung", p:69.99 },
+  { e:"🎧", c:"Elektronik", n:"Sony WH-1000XM5", d:"Over-Ear-Kopfhörer mit Noise Cancelling", p:299 },
+  { e:"📱", c:"Elektronik", n:"Samsung Galaxy S25 Ultra, 256 GB", d:"Smartphone, Titanium Silverblue", p:999 },
+  { e:"📱", c:"Elektronik", n:"Apple iPad (A16), 128 GB", d:"11-Zoll-Tablet, WLAN", p:379 },
+  { e:"🍌", c:"Küche", n:"Bananenschneider", d:"Schneidet eine Banane in 18 gleiche Scheiben", p:5.99 },
+  { e:"🦖", c:"Kostüm", n:"Aufblasbares T-Rex-Kostüm", d:"Für Erwachsene, mit Gebläse", p:39.99 },
+  { e:"💡", c:"Smart Home", n:"Philips Hue White & Color Ambiance E27 Starter-Set", d:"3 Lampen plus Bridge", p:149 },
+  { e:"🛢️", c:"Werkzeug", n:"WD-40 Multifunktionsspray, 400 ml", d:"Kriechöl mit Smart Straw", p:8.49 },
+  { e:"🔋", c:"Haushalt", n:"Duracell Plus AA Batterien, 20 Stück", d:"Alkaline, 1,5 V", p:15.99 },
+  { e:"🔥", c:"Garten", n:"Weber Spirit E-325 GBS", d:"Gasgrill mit drei Brennern", p:799 },
+  { e:"☕", c:"Küche", n:"De'Longhi Magnifica S ECAM 22.110.B", d:"Kaffeevollautomat mit Milchaufschäumdüse", p:279 },
+  { e:"🫘", c:"Lebensmittel", n:"Lavazza Crema e Aroma, 1 kg", d:"Ganze Kaffeebohnen", p:15.99 },
+  { e:"📓", c:"Büro", n:"Moleskine Notizbuch Classic, Large", d:"Liniert, Hardcover, 240 Seiten", p:22.95 },
+  { e:"🖍️", c:"Büro", n:"STABILO BOSS Original, 10er Etui", d:"Textmarker in 10 Farben", p:10.49 },
+  { e:"🎲", c:"Spiele", n:"Monopoly Classic", d:"Brettspiel von Hasbro", p:27.99 },
+  { e:"🐑", c:"Spiele", n:"CATAN – Das Spiel", d:"Basisspiel, Kosmos", p:32.99 },
+  { e:"🃏", c:"Spiele", n:"UNO Kartenspiel", d:"Das Original von Mattel", p:9.99 },
+  { e:"⌚", c:"Sport", n:"Garmin Forerunner 265", d:"GPS-Laufuhr mit AMOLED-Display", p:299 },
+  { e:"⌚", c:"Elektronik", n:"Apple Watch Series 11, 42 mm, GPS", d:"Aluminiumgehäuse, Sportarmband", p:449 },
+  { e:"📷", c:"Elektronik", n:"GoPro HERO13 Black", d:"Action-Kamera, 5,3K-Video", p:399 },
+  { e:"🛸", c:"Elektronik", n:"DJI Mini 4 Pro", d:"Mini-Drohne mit DJI RC 2 Fernsteuerung", p:959 },
+  { e:"🏋️", c:"Sport", n:"Kettlebell 16 kg, Gusseisen", d:"Kugelhantel mit Kunststoffbeschichtung", p:44.99 },
+  { e:"☀️", c:"Energie", n:"Balkonkraftwerk 800 W, Komplettset", d:"2 Solarmodule plus Wechselrichter", p:349 },
+  { e:"🤖", c:"Garten", n:"Gardena Mähroboter SILENO city", d:"Für Rasenflächen bis 500 m²", p:549 },
+  { e:"💦", c:"Garten", n:"Kärcher K 5 Power Control", d:"Hochdruckreiniger mit App-Anbindung", p:299 },
+  { e:"🫖", c:"Küche", n:"Bialetti Moka Express, 6 Tassen", d:"Espressokocher aus Aluminium", p:32.99 },
+  { e:"🍲", c:"Küche", n:"Le Creuset Bräter rund, 24 cm", d:"Gusseisen, emailliert, 4,2 l", p:299 },
+  { e:"🔪", c:"Küche", n:"WMF Messerblock, 6-teilig", d:"5 Messer plus Holzblock", p:99.99 },
+  { e:"🫧", c:"Küche", n:"SodaStream TERRA", d:"Wassersprudler mit CO₂-Zylinder", p:79.99 },
+  { e:"🚰", c:"Küche", n:"BRITA Marella Wasserfilter mit 3 Kartuschen", d:"Tischwasserfilter, 2,4 l", p:27.99 },
+  { e:"🧴", c:"Drogerie", n:"NIVEA Creme, 400 ml Dose", d:"Die blaue Dose", p:6.45 },
+  { e:"📚", c:"Bücher", n:"Harry Potter, Band 1–7 im Schuber", d:"Taschenbuch-Ausgabe, Carlsen", p:79.99 },
+  { e:"📕", c:"Bücher", n:"Duden – Die deutsche Rechtschreibung", d:"29. Auflage, gebunden", p:30 },
+  { e:"🍫", c:"Lebensmittel", n:"Lindt Excellence 70 % Kakao, 100 g", d:"Eine Tafel Zartbitterschokolade", p:2.79 },
+  { e:"🥫", c:"Lebensmittel", n:"Red Bull Energy Drink, 24 × 250 ml", d:"Dosen, zzgl. Pfand", p:29.99 },
+  { e:"🥔", c:"Lebensmittel", n:"Pringles Original, 185 g", d:"Eine Dose Chips", p:2.69 },
+  { e:"🦆", c:"Kurioses", n:"Quietsche-Enten, 100 Stück", d:"Gummienten für Pool oder Party", p:24.99 },
+  { e:"🌵", c:"Kurioses", n:"Sprechender Kaktus", d:"Tanzt und plappert nach, was man sagt", p:13.99 },
+  { e:"🔌", c:"Elektronik", n:"Anker USB-C-Ladegerät, 65 W", d:"3 Anschlüsse, GaN-Technik", p:39.99 },
+  { e:"🖱️", c:"Elektronik", n:"Logitech MX Master 3S", d:"Kabellose Maus für Vielarbeiter", p:89.99 },
+  { e:"🕹️", c:"Gaming", n:"PlayStation 5 Digital Edition (Slim)", d:"Konsole ohne Laufwerk, 1 TB", p:449 },
+  { e:"🎮", c:"Gaming", n:"Xbox Wireless Controller", d:"Carbon Black", p:59.99 },
+  { e:"💾", c:"Elektronik", n:"Samsung 990 PRO SSD, 2 TB", d:"NVMe M.2, PCIe 4.0", p:179 },
+  { e:"🖥️", c:"Elektronik", n:"LG OLED evo C5, 55 Zoll", d:"4K-Fernseher, 120 Hz", p:1199 },
+  { e:"⌚", c:"Mode", n:"Casio F-91W", d:"Digitale Kult-Armbanduhr", p:17.9 },
+  { e:"🕶️", c:"Mode", n:"Ray-Ban Original Wayfarer", d:"Sonnenbrille, schwarz", p:139 },
+  { e:"👖", c:"Mode", n:"Levi's 501 Original Jeans", d:"Herren, Straight Fit", p:79.95 },
+  { e:"🩴", c:"Mode", n:"Birkenstock Arizona", d:"Sandale aus Birko-Flor", p:79.95 },
+  { e:"👟", c:"Mode", n:"adidas Samba OG", d:"Sneaker, weiß-schwarz", p:120 },
+  { e:"🔥", c:"Kurioses", n:"Zippo Sturmfeuerzeug", d:"Chrom gebürstet", p:29.95 },
+  { e:"🌀", c:"Kurioses", n:"Fidget Spinner", d:"Metall, mit Kugellager", p:7.99 },
+  { e:"🪑", c:"Büro", n:"noblechairs HERO Gaming-Stuhl", d:"Kunstleder, schwarz", p:399 },
+  { e:"🗄️", c:"Büro", n:"FlexiSpot E7 Schreibtischgestell", d:"Elektrisch höhenverstellbar, ohne Platte", p:399 },
+  { e:"🎄", c:"Deko", n:"Künstlicher Weihnachtsbaum, 180 cm", d:"Mit Ständer, ohne Beleuchtung", p:79.99 },
+  { e:"🎧", c:"Elektronik", n:"Bose QuietComfort Ultra Earbuds", d:"In-Ear mit Noise Cancelling", p:249 },
+  { e:"🔊", c:"Elektronik", n:"JBL Flip 6", d:"Wasserdichter Bluetooth-Lautsprecher", p:99 },
+  { e:"🧸", c:"Spielzeug", n:"Toniebox Starterset", d:"Hörspielwürfel mit Kreativ-Tonie", p:99.95 },
+  { e:"🗼", c:"Spielzeug", n:"LEGO Icons Eiffelturm (10307)", d:"10.001 Teile, 1,49 m hoch", p:599 },
+  { e:"🧽", c:"Haushalt", n:"Miele Complete C3 Silence", d:"Bodenstaubsauger mit Beutel", p:229 },
+  { e:"🦄", c:"Kurioses", n:"Einhorn-Horn für Katzen", d:"Verstellbares Kostüm-Accessoire", p:7.99 },
+  { e:"☕", c:"Kurioses", n:"Tasse „Erst Kaffee, dann Menschen“", d:"Keramik, 330 ml", p:12.99 },
+  { e:"🍳", c:"Küche", n:"Tefal Ingenio Easy Plus, 10-teilig", d:"Pfannen- und Topfset mit abnehmbarem Griff", p:119 },
+  { e:"🛏️", c:"Haushalt", n:"TEMPUR Original Kopfkissen", d:"Ergonomisches Nackenstützkissen, M", p:119 },
+  { e:"☕", c:"Küche", n:"Nespresso Vertuo Pop", d:"Kapselmaschine von Krups", p:69.99 }
+];
+
+/* ---------- Hilfsfunktionen ---------- */
+const $ = (sel) => document.querySelector(sel);
+const app = $("#app");
+const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]));
+const eur = (v) => v.toLocaleString("de-DE", { style: "currency", currency: "EUR" });
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/* "12,50" / "1.299" / "1.299,95" / "12.5" / "€ 40" -> Zahl oder NaN */
+function parsePrice(raw) {
+  let s = String(raw).replace(/[€\s]/g, "");
+  if (!s) return NaN;
+  if (s.includes(",")) {
+    s = s.replace(/\./g, "").replace(",", ".");
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
+    s = s.replace(/\./g, "");
+  }
+  if (!/^\d+(\.\d+)?$/.test(s)) return NaN;
+  return parseFloat(s);
+}
+
+/* ---------- Spielzustand ---------- */
+let state = {
+  screen: "setup",       // setup | intro | handover | guess | reveal | final
+  players: ["Spieler 1", "Spieler 2"],
+  scores: [],
+  totalRounds: 10,
+  deck: [],
+  round: 0,              // 0-basiert
+  guesses: [],
+  turn: 0                // wer gerade schätzt
+};
+
+function setStatus() {
+  const s = state.screen;
+  $("#status").textContent = (s === "setup" || s === "final") ? "" : `Runde ${state.round + 1} / ${state.totalRounds}`;
+}
+
+function progressBar() {
+  let html = '<div class="progress" aria-hidden="true">';
+  for (let i = 0; i < state.totalRounds; i++) {
+    html += `<i class="${i < state.round ? "done" : i === state.round ? "now" : ""}"></i>`;
+  }
+  return html + "</div>";
+}
+
+function tagCard(prod, priceHtml) {
+  return `
+    <div class="tag">
+      <div class="emoji" aria-hidden="true">${prod.e}</div>
+      <div class="cat">${esc(prod.c)}</div>
+      <div class="name">${esc(prod.n)}</div>
+      <div class="desc">${esc(prod.d)}</div>
+      ${priceHtml}
+    </div>`;
+}
+
+/* ---------- Bildschirme ---------- */
+function render() {
+  setStatus();
+  ({ setup, intro, handover, guess, reveal, final })[state.screen]();
+}
+
+function setup() {
+  const rows = state.players.map((name, i) => `
+    <div class="player-row">
+      <input type="text" id="p${i}" value="${esc(name)}" maxlength="20" aria-label="Name Spieler ${i + 1}">
+      <button class="icon" data-remove="${i}" ${state.players.length <= 1 ? "disabled" : ""} aria-label="Spieler entfernen">✕</button>
+    </div>`).join("");
+
+  app.innerHTML = `
+    <section class="panel">
+      <h2>Wer spielt mit?</h2>
+      <p class="hint">Ihr seht ein Produkt ohne Preis. Jeder tippt geheim, was es kostet. Wer am nächsten dran ist, bekommt einen Punkt. Bei Gleichstand gibt es für alle einen.</p>
+      <div class="players">${rows}</div>
+      <div class="actions">
+        <button class="ghost" id="add" ${state.players.length >= 8 ? "disabled" : ""}>+ Spieler hinzufügen</button>
+      </div>
+      <div class="field">
+        <label class="label" for="rounds">Runden</label>
+        <select id="rounds">
+          ${[5, 10, 15, 20].map((n) => `<option value="${n}" ${n === state.totalRounds ? "selected" : ""}>${n} Runden</option>`).join("")}
+        </select>
+      </div>
+      <div class="error" id="err"></div>
+      <div class="actions"><button class="primary" id="start">Spiel starten</button></div>
+    </section>`;
+
+  const readNames = () => state.players = state.players.map((_, i) => $("#p" + i).value);
+  $("#add").onclick = () => { readNames(); state.players.push(`Spieler ${state.players.length + 1}`); render(); $("#p" + (state.players.length - 1)).select(); };
+  app.querySelectorAll("[data-remove]").forEach((b) => b.onclick = () => { readNames(); state.players.splice(+b.dataset.remove, 1); render(); });
+  $("#start").onclick = () => {
+    readNames();
+    const names = state.players.map((n) => n.trim());
+    if (names.some((n) => !n)) { $("#err").textContent = "Jeder Spieler braucht einen Namen."; return; }
+    if (new Set(names.map((n) => n.toLowerCase())).size !== names.length) { $("#err").textContent = "Zwei Spieler heißen gleich. Bitte unterschiedliche Namen vergeben."; return; }
+    state.players = names;
+    state.totalRounds = +$("#rounds").value;
+    state.scores = names.map(() => 0);
+    state.deck = shuffle(PRODUCTS).slice(0, state.totalRounds);
+    state.round = 0;
+    state.screen = "intro";
+    render();
+  };
+}
+
+function intro() {
+  const prod = state.deck[state.round];
+  app.innerHTML = `
+    ${progressBar()}
+    <div class="reveal">${tagCard(prod, '<div class="price hidden">?? ,?? €</div>')}</div>
+    <p class="hint">Alle schauen sich das Produkt an. Danach tippt jeder nacheinander geheim seinen Preis ein.</p>
+    <div class="actions"><button class="primary" id="go">Schätzen beginnen</button></div>`;
+  $("#go").onclick = () => { state.guesses = []; state.turn = 0; state.screen = state.players.length > 1 ? "handover" : "guess"; render(); };
+}
+
+function handover() {
+  app.innerHTML = `
+    ${progressBar()}
+    <section class="panel handover">
+      <p class="label">Gerät weitergeben an</p>
+      <div class="who">${esc(state.players[state.turn])}</div>
+      <p class="hint">Die anderen schauen weg.</p>
+      <div class="actions"><button class="primary" id="ready">Ich bin ${esc(state.players[state.turn])}</button></div>
+    </section>`;
+  $("#ready").onclick = () => { state.screen = "guess"; render(); };
+}
+
+function guess() {
+  const prod = state.deck[state.round];
+  const name = state.players[state.turn];
+  app.innerHTML = `
+    ${progressBar()}
+    ${tagCard(prod, "")}
+    <form class="panel" id="f" autocomplete="off">
+      <label class="label" for="g">${esc(name)}, was kostet das?</label>
+      <div class="euro-row">
+        <input class="big" id="g" type="text" inputmode="decimal" placeholder="0,00">
+        <span aria-hidden="true">€</span>
+      </div>
+      <div class="error" id="err"></div>
+      <div class="actions"><button class="primary" type="submit">Schätzung abgeben</button></div>
+    </form>`;
+  $("#g").focus();
+  $("#f").onsubmit = (ev) => {
+    ev.preventDefault();
+    const v = parsePrice($("#g").value);
+    if (!isFinite(v) || v < 0) { $("#err").textContent = "Bitte einen Betrag eingeben, z. B. 49,99."; return; }
+    if (v > 1000000) { $("#err").textContent = "Maximal 1.000.000 €."; return; }
+    state.guesses[state.turn] = v;
+    state.turn++;
+    if (state.turn < state.players.length) state.screen = "handover";
+    else { scoreRound(); state.screen = "reveal"; }
+    render();
+  };
+}
+
+function scoreRound() {
+  const price = state.deck[state.round].p;
+  const diffs = state.guesses.map((g) => Math.abs(g - price));
+  const best = Math.min(...diffs);
+  state.winners = diffs.map((d, i) => (Math.abs(d - best) < 0.005 ? i : -1)).filter((i) => i >= 0);
+  state.winners.forEach((i) => state.scores[i]++);
+}
+
+function reveal() {
+  const prod = state.deck[state.round];
+  const price = prod.p;
+  const order = state.players.map((_, i) => i).sort((a, b) => Math.abs(state.guesses[a] - price) - Math.abs(state.guesses[b] - price));
+  const rows = order.map((i) => {
+    const g = state.guesses[i];
+    const diff = g - price;
+    const pct = price > 0 ? Math.round((diff / price) * 100) : 0;
+    const win = state.winners.includes(i);
+    return `<tr class="${win ? "winner" : ""}">
+      <td>${esc(state.players[i])}${win ? '<span class="pill">+1</span>' : ""}</td>
+      <td class="num">${eur(g)}</td>
+      <td class="num">${diff >= 0 ? "+" : "−"}${eur(Math.abs(diff))}</td>
+      <td class="num">${pct >= 0 ? "+" : "−"}${Math.abs(pct)} %</td>
+    </tr>`;
+  }).join("");
+  const last = state.round + 1 >= state.totalRounds;
+  const search = "https://www.amazon.de/s?k=" + encodeURIComponent(prod.n);
+
+  app.innerHTML = `
+    ${progressBar()}
+    <div class="reveal">${tagCard(prod, `<div class="price">${eur(price)}</div>`)}</div>
+    <section class="panel">
+      <h2>${state.winners.length > 1 ? "Gleichstand!" : esc(state.players[state.winners[0]]) + " war am nächsten dran"}</h2>
+      <div class="scroll"><table>
+        <thead><tr><th>Spieler</th><th class="num">Tipp</th><th class="num">Abstand</th><th class="num">%</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+      <p class="hint"><a href="${search}" target="_blank" rel="noopener">Aktuellen Preis online nachschauen ↗</a></p>
+    </section>
+    ${scoreboard()}
+    <div class="actions"><button class="primary" id="next">${last ? "Zum Endergebnis" : "Nächste Runde"}</button></div>`;
+  $("#next").onclick = () => {
+    if (last) state.screen = "final";
+    else { state.round++; state.screen = "intro"; }
+    render();
+    window.scrollTo(0, 0);
+  };
+}
+
+function scoreboard(title = "Punktestand") {
+  const order = state.players.map((_, i) => i).sort((a, b) => state.scores[b] - state.scores[a]);
+  const top = Math.max(...state.scores);
+  return `<section class="panel">
+    <p class="label">${title}</p>
+    <table><tbody>${order.map((i) => `<tr class="${state.scores[i] === top && top > 0 ? "winner" : ""}"><td>${esc(state.players[i])}</td><td class="num">${state.scores[i]}</td></tr>`).join("")}</tbody></table>
+  </section>`;
+}
+
+function final() {
+  const top = Math.max(...state.scores);
+  const champs = state.players.filter((_, i) => state.scores[i] === top);
+  const headline = state.players.length === 1
+    ? `${top} von ${state.totalRounds} Treffern`
+    : champs.length > 1 ? `Unentschieden: ${champs.map(esc).join(" & ")}` : `🏆 ${esc(champs[0])} gewinnt!`;
+  app.innerHTML = `
+    <section class="panel">
+      <p class="label">Endergebnis nach ${state.totalRounds} Runden</p>
+      <div class="podium">${headline}</div>
+    </section>
+    ${scoreboard("Tabelle")}
+    <div class="actions">
+      <button class="primary" id="again">Nochmal mit denselben Spielern</button>
+      <button class="ghost" id="new">Neue Runde einrichten</button>
+    </div>`;
+  $("#again").onclick = () => {
+    state.scores = state.players.map(() => 0);
+    state.deck = shuffle(PRODUCTS).slice(0, state.totalRounds);
+    state.round = 0; state.screen = "intro"; render();
+  };
+  $("#new").onclick = () => { state.screen = "setup"; render(); };
+}
+
+/* Spielstand bei Seiten-Updates im Claude-Viewer behalten (außerhalb wirkungslos) */
+window.claude?.hot?.snapshot?.(() => state);
+const start = (data) => { if (data && data.screen) state = data; render(); };
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+</script>
+</body>
+</html>
