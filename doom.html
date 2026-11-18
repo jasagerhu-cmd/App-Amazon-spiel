@@ -1,0 +1,966 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Grinse-Invasion</title>
+<style>
+  :root { --red:#e8331c; --amber:#ffb020; --bg:#0a0505; }
+  html,body { margin:0; height:100%; overflow:hidden; background:var(--bg); color:#eee;
+    font-family: Impact, "Arial Black", system-ui, sans-serif; user-select:none; -webkit-user-select:none; touch-action:none; }
+  canvas#gl { display:block; position:fixed; inset:0; width:100%; height:100%; }
+  #cross { position:fixed; left:50%; top:50%; width:22px; height:22px; margin:-11px 0 0 -11px; pointer-events:none; }
+  #cross::before,#cross::after { content:""; position:absolute; background:rgba(255,255,255,.85); box-shadow:0 0 3px #000; }
+  #cross::before { left:10px; top:0; width:2px; height:22px; }
+  #cross::after { top:10px; left:0; height:2px; width:22px; }
+  #hitmark { position:fixed; left:50%; top:50%; width:30px; height:30px; margin:-15px 0 0 -15px; pointer-events:none; opacity:0;
+    border:3px solid var(--red); border-radius:50%; transition:opacity .15s; }
+  #dmg { position:fixed; inset:0; pointer-events:none; opacity:0;
+    background: radial-gradient(ellipse at center, rgba(255,0,0,0) 40%, rgba(200,0,0,.75) 100%); }
+  #bar { position:fixed; left:0; right:0; bottom:0; display:flex; justify-content:center; gap:4px; padding:6px;
+    background:linear-gradient(#2b2b2b,#141414); border-top:3px solid #555; pointer-events:none; }
+  #bar .c { min-width:84px; text-align:center; padding:2px 10px; background:#1b1b1b; border:2px inset #444; }
+  #bar b { display:block; font-size:30px; line-height:1; color:var(--red); text-shadow:0 2px 0 #400; letter-spacing:1px; }
+  #bar span { font-size:11px; color:#aaa; letter-spacing:2px; }
+  #bar .c.low b { animation: blink .5s steps(2) infinite; }
+  @keyframes blink { 50% { color:#fff; } }
+  #msg { position:fixed; top:16%; left:0; right:0; text-align:center; font-size:44px; color:var(--amber);
+    text-shadow:0 3px 0 #000, 0 0 18px rgba(255,80,0,.6); pointer-events:none; opacity:0; transition:opacity .3s; padding:0 16px; }
+  #mini { position:fixed; top:10px; left:10px; width:150px; height:150px; opacity:.8; pointer-events:none; border:2px solid #444; background:rgba(0,0,0,.5); }
+  #overlay { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+    background:radial-gradient(ellipse at center, rgba(60,0,0,.75), rgba(0,0,0,.92)); text-align:center; padding:16px; z-index:10; }
+  #overlay h1 { margin:0; font-size:clamp(40px,10vw,96px); color:var(--red); letter-spacing:3px;
+    text-shadow:0 5px 0 #400, 0 0 30px rgba(255,40,0,.6); transform:skewX(-6deg); }
+  #overlay img { width:120px; filter:drop-shadow(0 0 20px rgba(255,0,0,.7)); animation: wobble 1.2s ease-in-out infinite; }
+  @keyframes wobble { 0%,100%{ transform:rotate(-8deg) scale(1);} 50%{ transform:rotate(8deg) scale(1.08);} }
+  #overlay p { margin:0; font-family:system-ui,sans-serif; color:#ccc; max-width:520px; line-height:1.5; }
+  #overlay button { font:inherit; font-size:26px; padding:12px 34px; color:#fff; background:var(--red); border:0; border-radius:4px;
+    box-shadow:0 5px 0 #6a0d00; cursor:pointer; letter-spacing:2px; }
+  #overlay button:disabled { opacity:.5; }
+  #overlay button:active { transform:translateY(3px); box-shadow:0 2px 0 #6a0d00; }
+  .keys { font-family:ui-monospace,monospace; font-size:13px; color:#999; }
+  /* Touch */
+  .touch { display:none; }
+  body.is-touch .touch { display:block; }
+  body.is-touch #mini { width:110px; height:110px; }
+  #joy { position:fixed; left:24px; bottom:90px; width:120px; height:120px; border-radius:50%; border:2px solid rgba(255,255,255,.25); background:rgba(255,255,255,.06); pointer-events:none; }
+  #joyKnob { position:absolute; left:35px; top:35px; width:50px; height:50px; border-radius:50%; background:rgba(255,255,255,.3); }
+  .tbtn { position:fixed; border-radius:50%; background:rgba(232,51,28,.45); border:2px solid rgba(255,255,255,.4); color:#fff;
+    display:flex !important; align-items:center; justify-content:center; font-size:14px; letter-spacing:1px; }
+  body:not(.is-touch) .tbtn { display:none !important; }
+  #fireBtn { right:24px; bottom:96px; width:92px; height:92px; }
+  #swapBtn { right:128px; bottom:110px; width:56px; height:56px; background:rgba(80,80,80,.5); }
+  #jumpBtn { right:40px; bottom:200px; width:56px; height:56px; background:rgba(80,80,80,.5); }
+  @media (max-width:600px){ #bar .c{min-width:0; padding:2px 6px;} #bar b{font-size:22px;} #bar span{font-size:9px; letter-spacing:1px;} #msg{font-size:30px;} }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<canvas id="mini" width="150" height="150"></canvas>
+<div id="cross"></div>
+<div id="hitmark"></div>
+<div id="dmg"></div>
+<div id="msg"></div>
+<div id="bar">
+  <div class="c" id="hpBox"><b id="hp">100</b><span>GESUNDHEIT</span></div>
+  <div class="c" id="ammoBox"><b id="ammo">0</b><span id="wname">SCHROT</span></div>
+  <div class="c"><b id="wave">1</b><span>WELLE</span></div>
+  <div class="c"><b id="kills">0</b><span>KILLS</span></div>
+  <div class="c"><b id="score">0</b><span>PUNKTE</span></div>
+</div>
+<div id="joy" class="touch"><div id="joyKnob"></div></div>
+<div id="fireBtn" class="tbtn">FEUER</div>
+<div id="swapBtn" class="tbtn">WAFFE</div>
+<div id="jumpBtn" class="tbtn">SPRUNG</div>
+
+<div id="overlay">
+  <img id="ovFace" alt="">
+  <h1 id="ovTitle">GRINSE-INVASION</h1>
+  <p id="ovText">Sie grinsen. Sie kommen in Wellen. Sie haben alle dasselbe Gesicht.<br>Halte so lange durch wie möglich.</p>
+  <button id="ovBtn" disabled>LÄDT…</button>
+  <div class="keys" id="ovKeys">WASD bewegen · Maus zielen · Klick schießen · Shift rennen · Leertaste springen · 1/2 oder Mausrad Waffe</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+const FACE_SRC = "data:image/webp;base64,UklGRmY4AABXRUJQVlA4WAoAAAAQAAAA/wAAUQEAQUxQSOYUAAANNyAmTVj/zH6GiIjMGI7bRnIklck/6Z3uOfuPiAkAiE26tRNY4DbYA1YBrKkcfYjVM3rgTi5gTbHabopbu8u4oE2tXKD4LuzD3e3nfX3IH+g2ccQ2IvI2crqqzCp1W21kO51SATsfNMnP1DxTDzKQ6uRUJpEZ0xDsjkkAHy1HkiTIEaMLqigAKxICsKIl4B5FoP5K7IHYBfrHR0T/EQZMEmYY+AmFAKzlNhKGtYeAJQ8AS/oE/GQCay9/MvcBIKL/Ctu2QToofUKxtvawbTNEN7DYAcrvwwJ4DwsUyP7LJLUrcYCI/its27bJUlV/4iuSJNu2bdvCMGedBEZaEmhmSWBGTv6oSql9vtp/RP8Rpm2bNa1n8onv2rYsSZIkC4VQOoYArU0InL3ZADBixcAMf2TCHqLC5P8R/UfgsHBWJs5PeC9Nu7Zr/Vr//fOfP+fzmOuz/vrbX/8bH2PQQ4pyLJ1MUiAQOgvVsCOObcXb+1h1poUYCkT6L5diOcSWcqhImlL8bSIg22SlfjOWFSU+0K8Sp7RmNLZIJU7mdlRBMptY11l6bdpRsRCxAk7X4hhiC6OSTtQukboz2gGBAHS7ihK7pEojE2ud9U5ENrviH6/lK+b1wajdJo7Oc4f1X6d/tc+zGwP3+VTNBwWi5MPUmUrtwXNPd8ryyxGEHWqEp5BR9jFiZqdD7eg9N47siL2D7hA6VpiySkApne1D/Gq7N7rZOVU0Mry+ko1LAJR2g7slXWfocoI9Mky7kpBkIy4SSSROFMpMYW/WCa8zHfbUQZtIoJUWhwoohySSRHKhKUrZOuA2G1GVNhPoR2nt5IoT6UP0QXLtSAbARPv501U29nRR7lzqAjTdPacVTXL0XrktD03htp49fdHp+JXvty63jGyL2LmDlg4tUOnm1fuvzIITTi7AOHp9JrGEsBRLeQwsIZAWa0uSL8Es23741GlVD9edqETaKKRxsgBZNzGVHTua3PIEkJ49uYjjWO9ExlDL9nb0fRImcA1FmhgxC5Mnwzrm9OjOFSMPkVasxf3Db3qVdMcuKlEapmbM9ZzaaJfaBhmMLGll96dJZq62VJQaCRjC8mMnV44e28ICjE22d16hmcwIol6flsQE4sdOnfjp6ZF8pVGDFOvKi/RV0uquO58xU5Oy9FAwo3x9k/CkPEU8xQsIgdjD6BmSF6YhD8VV48mzahruISSxvEQ2be3aU8fYN02C1lP72f1teg51/banv+jn2fktfic6oQ/1fGi+2t3xa1aGwl6I3evLhs5rT+tanYi7P0r9yMyEHl0dkrimjN7g56n0e5tEKJjyE3G1XV1n4lsH4CZ+i5NO4p72m9v0HBp6IJywt6e1d3AjFeddNGQ0T7psNOl+ILq14xfGFA5Atq636Sqk/Tqx8EcJaT2xb0fv3QzBWx9WRLvc0yr6gblTWQ6Rqjztj+adSAuHMXqZYvjd4QqHX/QKnlBieStuOvRglvzh6TdHB8dSuUsAVoX30i2q/X4bGEXeGS6nh1WTZnjG5t0YyGH5M0HDU+SN0X2iS/N6aXiKbN4OM/awrusKDBDrjfHgbF3p/GcCti7ez1VQf/3cyoAm/cb+/Ojr9Rcg64EkzFL9/H5d8v/1xnq1u883iQAa1iOGbJ/zaDukjqGW3lSZ0NM8IwJAuPIMfTinbUYbmbLfFUT9OjawleyHElzNelpbmEDe5KtV25wErka68hSdnPdtcxIAb6rMWFdr8fpP+av1ZgwGIl+vL26thwf/W/5i5YsM9JuCbDw7of7jni/PE6on7nfM3JbliElcF/xoQmf6vk2sYljcX9dVWLpva2iI9WiCe9nVVdww7DdUyNB1XWmm2H3lWXpPe9zRGlDxy+bMwYMWTfPtaePrb7fb3njimX11uu3RViogP5yn4d+oo5cEU3o5mt2x6isAYj3+cV1WNRcapeZFc+n20AkUzs7jMINDP7c8ac2LsdPt7spLTCRdeZ6rrcfrylDTr0ZhuHaSWWoOyOfl7viVpAc1r0Xurrb1uaunNldO4HL27KzTAFC6v6QyffJzCYDJKYi2s//gBltfWmTavpImPqO/FL+ZuQDYfGFgps/7viZRJenKGVxtx2ri67qGsr9Qi7NWTnNzn5J/YM8Tn9x385V60T5vln/XyFdO4aK/Bd55DcmvV8KZVZubsJVzKHSe2Ng9nZcLE/N0RtBGfExPmKTPdCSM4NeHljPNSR1CunIOncih1+vL03p5aNB2pI0Qdw7CObUL7i/AeV12PA6pA45zEoKH9pVR4lUTqqmFfedR/Tl2DMmXQM6LA7j3axrXJe8chQt7m6a78YtuqiYGQBzWwVg1LwF6dRCGiYBdOqxDF4byEmXz4pKhrUiAPKyDs9UWBJXXBrqrWQL3cb3IRnsF1HrJzc6R2wjkK6dxUa3YzPRrg1m1kRtbOY+Cm0Zo5JWBRA5Vqkx2joMZGSOXPM1LA1RLcCNdOY+rdWMskF9w0225lilJOZG2Q9ayaL0ylCFOl/vE/tLNuDem/G8zI5pLhthHfhDlWgGT/Z9VJp38tCnZV07kgg7HPyjwb5A7TW3UPnRJWnZrgxD+jf53awqh+8zHXWvi392fkXeyxnSTHzmU/hv3xNqp60/rOquvLcpWTqUwOvaFnY1/krx1xLLqOvXxGmVlaFz8k3R30viUYfvYj6kzpwlq7f1d/u12xgJyDn6h7VgC+uefJJ11noZbOrbQyWPq89wFvotLWvcGkZ1z0TS9YYDmK+Kk49+ZHIzwFCxQv4O0qUGpjxZ5ZFKDWN83ZDqxAefkTmRam4L0Dc8vJiFyNidNTGp9F3WmN0mSwwtNkhtS/bKVNDlHl+x98nOdeUcnueB8C6TzO2/lbDK/swJfTxqnHsHX8SavOzJcfSk6oS7pjfHh0nmcwEvnW9rmtCGxDn/dmdonF3xZQlObILMPz3XS2AB7FdyV2pYE5XTSmbG9XNxXSsyMQPzfGXK76UisfGmITEzup/4D35wrMXW9JLmk57BR59dLNZ0C13755Fp30gX59a+So6x/385Le5159nH10wXGg2M189d+LYGeKwj8fhITBzTr9yTewNVc8JZjgqtXwUylEv0VRyPkonkC2lMsfkEDkhMAfP7SAm2wdS54dTDpVHhLPkvxlxyj9OEl/bRPIHQDiQk8sAM4fDqjOr9iV3XHT6sC4dNEq7V/xenDIeGnfFLZG/gVDUiS3mnrSY0j/qJnHNEnTNI7kfMrtmJkb8ACiXJV55ecVTUlg+DBoaaKO0gM15YRmSOha4q5ItASsyPXBUIiVDHcgUhSQgSKoahrMiThhGlYyYGtGa6p0UwtONKJEOYyM0rYjiShmP3XXlLvv1dOQF5E3aKqOpdYd5LOqAmJBD4Y5hKJnCIhsiTA/rOHW7AfW0EDRAlTtXWNssmNlCcdiv3gmpqznK7QEJcAH81ek5c+FY1AIqnqqb4mdOxzSAjhE2CKuUYSqz6lEAI1Fz0QTxEFUWCYq0xupdQRYauKXPOK5EyZuNhSDHVRCHZy29CJVKYuq3M5CRs3tMNwVY1dd4zyHKqHm7DPU2pFCoa7gnUypSNAUX2ROpwqOUIHZ2e8Rxldh2oKcYGpXBUqAjts91mo7qsuIN2B/WiXDjB7Wb0C1QxZKwzlVWGCVAYgCAx1VQgCwxAIDAx3IQhFITipyl1jJeXA0rFSUH2VOpDKUFmQ3dm9abnrLkOFEKimLqtDB4pxBJyyctV94gBAIBQXGqFgsjgA19UAToXOc+jLrJ/DDk6Acu6adgJUdxPgvgsEgB3HCpVxuAnHCpWSjMB428oIjAUNQHMbDTzfZJDhNmSQASAUNxKK/xdk8EoNAlCEItepCEWABWCv08LzbVJAytuuKSBlpRyc1F0VpxwcaxkA5DYGgA6VAazcdR4ygLvsABXvejVTATruOBXdNx3YG6DiZNn9fYUwCOHwlHLuWVzPc4DMunOh7YDEXbR3rqurm+A0cr3hXmUjjBOM4nhvuvesxwq0ZZ0IdwEUiGVUwatkBYSQm2sH66YvRwonwG6s0u5FGncBLplZu+7sZQfaHeizEbuKc1W4FtChqTFOJ+U18kBXcLGRKrmsbgDiDEQ3ctWBgCEkFEPXDTfBzJANxLbhEC5aFFQWO43SNV4WLIfosp9C8CIZPIceidoqc8uXm05DiCVUIVfVVEAilFle9J4ZECHqpyJeZQLwgJSS1417jUZmRqIkO4uz9C2L3SxAOrpTTtKHW9a0dkNF6RKyaHtNcGshifRA0Z8bboH5bEBpS8k4hGvqaIFEiYB9UfeaelSmkxAOqUn6H33HYv9j06CSapSSqNfUKgjRiaur2oRbxsCGo5OCMLnMGgwJZUoo4ZI6UogieRbZGsleoSFxkZyijBXBXBMVq3CCFAlVkvQlYQOEREKFOkuMc8NwRdpVA1EgHSOXWCIdE6BaQbt6kXSWhANF/SByOHuFZrUS84DwxA/dSdJeIDfA7jyedyPQoFFuQNEkiUOx0x9IzBUHQoiH0lD5wGo48/uHu0LnaQtVoAMeLzGXpSbAUxZATG44CFKpf0izaBWaQ58vdwutpt6/46EVjVeYKAfa/K45f9+zk8PnBQf6tLjDtSZ/7Gb+qiY56tPF1QXtntkrSc/CGdck/4EPcLxQ5x9Fixr0sTl/kPnRbusfSUlrqnI8rNPlbrk4B9M/vjkuYDtJLzCQtH1yrC8CCvZ0hv7dZ7YlyK7mi5AK3XaTs7/cBiTse47KX7gBxoy/IfxusA5L9Umav8gWYaZe4u++p91g3BzkLwIEeqYT+d1IQXJq8sWFq5BuZiXp31yxIXfmnjk6XxuJc2bm/PoASTqbfGkloPQ768Nl/c7PxJL/aJ+x26Y8Oo+A/ZdXCQjuhPFw+YiCO/WbEgq0U0n62KIEaKfT/wY7AcbZkT53C4Rw1i25voHA677dDpiPrdEP4ft+U74R/mGA/J3po4WHJG3+7n/WDCjId6rXg2uvRd6eTpz3NyIX8XXvsu+nju62LnHcNf1OdtxUcrlbHnssNWivvpMr37RLbuXuMH8/dfwtFOW8k0W+aRWEcyPyeqbqMkbyNHXzbSNMIqM89lhl2J2m369l5B+pm3Y+srbkhv510sm3wgqCbKrpQ0UB6Xab+voJGrG6O8z1xNEKpebZ9P1rBseFtWfdPDSw3WjO4iAvIBms2CE8Mdg2JVKU9gUnaMhk7z5Qn67u3HTV/KjJNA4dtk9US5Qc5ORH41QGelWUPk+3DEatK+NnRy5DJtqRB0pK4B1l0LyAkgZ/FRQeF7BssCW688NGau67uluepmOpQTfu1vyoHQOS204fpxgC4EHlp0eiave4a6UPUza577A8xrDNj1qRQXD6vsPDdJSuC3RRmp+2cR/WTJ72YUrERml8Nj8XRwAw+ab4etJwlqCDTNWfM7YGoXvyxGfpKLhR97Sr/PhoiRwg03ym13PAJhwEk57Y68dH0eAFe77Y8qAjgIfsvl3Nz3XQWe5cn59Kn6NbBgD9zvqjmRcOLHV75/7VYR6jWqF4yPe8b07k27BzVlXu+3Nv4CnYtvuC5LXWH2m+zywE1HVdyz4DL4qN5GqbnOEFREz/6N+G+phv9Nvy/jpf80oujg2Q/ZOxuHyGbpZH6brdtg+LVyA1s5KszXiCvrzcm+319Q15SaOL8syNS+AJ2LYZSP5mdelLl9hyMeSlbvsEaEU0fF10OUjzGqTc09xRxfl57I0BcsvZjNfyUz3Ahq3m7wecbwHaN+ji/3qxMsQQxeHw3/vTw/2DovDLLrvyai4pDXPfGS68xqd1auFBhXl0p+FVtqUJ9SqHg/P6LNgbT0+rQ0/7v710YU36DjiG5bMYRRV22J7ii9dRSoy6b+rZtB8FG7kn8s1YdqS8zrYpgDnPrCUfxSj2XZtidcgbvGgFMwFn1n9Mb+6i6xFz/f99AQDd0/639CKge6q+iUkUYAPt/rH+cA47XWqat7SW5AEdzLRq/BRmtRYAMd+4aN/iv9fysVFK69B58ZFyz1ofAJzJcxhv82iFAg5q5lUpH/lii2vhkiZfHebK27p+l3WupbZ84muEtda2n+Pf33jfzixhQu6b04X5ALSCh+Z939GjON/kL/XQNMnwdKXl3UOkDE3+SuR08VZvjJ6Aro1qeXs1tgD8z6vq2YY772s20tCHvGOXbt5dseOGITLpr66272SNRpNGsHdXe/atFQ3SULfvuj2Vd/IFj6L9uoYHTZz3DVcEntQq27F4M19wf4g71KUm7ts0gmEgB/tr826+UMXwV7LlcB4E3ySjHzxNJ7Ic4+18wtNzUD7ztB2m13vGS6EIbDw9XYfD2/mlhgucma5FZb5lvLaRtx2S0q2fyHui3B+8xEnfLV7jHeO1a2GuC1Tm7a/N+ACfyCj/QtycLLVm5OVxpYIAO5W7+cVY+QiTbcLQccHjdhwEXh13bONZhOW+H8v4ESZaAW3YJc3t7sI0Qr4tSil4qHFrZlZXNR/h77MamzbQzZChSBy/217JhjJlOH3mcfczeX/MABsk0flb3Bw6zXc+ttkt6bd9IzPTp5pe+VQPgidgu5M2pcDM9w/bjYpAgEJAPZyY4afgLjI8oCKnk2/MIGVaX37sOJKfoIMCTYYuFjnDz8EO0QNDe9LUPdte/YaxgfkBCMquuLY9ND/JaAMMifa804xKDJ0mUNFm18rFx9AlO3SposNPwpakHiDYzoxYSCNkQnEpIWUJibaLrt02P7vLFTfQmy+Osqi0RVyy1NCYAi60c5TXa6ubND/Ntkp46KAY320FGpL9qx4I1AW8zUw+FnaU4afRchAAoOQTyGjhLLESR5qV8El1eiatWsPH+UXlMC073c69t0MCTteCPpiZYhLolsUz/qBmbVgeqInj3M49JEIoSqCmmEqIuy5sL++cAFf9lKBUsep2dUmggsYZBoCMDu0YwJ1nNLtPbsBtpNuNBMEsAxiGWDbqJiNXntLuRMZDyJj7BJKFaqCqWtxgF1J50JYR5MasVuw7EMgkLkXsdDgobmqa5/SXlEqsPk3huhOKO47A8slpR8fztsYKabeuiC3QgYpdTYdwZLNjyv2w4j6yQB2bIlgOToYii6u2PnFfCRFg9xyr6QzPdJJQ+t4FVlA4IFojAABwzQCdASoAAVIBPj0aikMiIaEXCdWgIAPEs7duri2677fT3yH9az0+undQfqD/Yx9RqqgGvfut527WLtX/qbHmMFF3nAYAx72hrHnCTN2qoO323W4C61ZhuuOlTte3v7expsFXEo1rWtJNhNVumBKFTkXHMQPg1PXssOweM02KYh+f/vQgoaP4MxzMcg1ur4GoOrDifmrdTxUbUh7Gli9mMSwApDj12J54VmgkqLh/KMuFtmXuJxzRBEVqF4rOf/iJFm0vJatG268SDSi7JyY7r/wbGq3ehv+Sjme3r7WJ6c3OEJSlTyK68c6qqjy3ATdB8sIs4W6L2Y/4OYIdN8bJIEr3TbcuuY7ORrwjv6GXrX9vr5f62KCSN0r+ZiBXD+z8ZF9Go4OI046GebfVeaAwqvBW6TOCE39W0x5I61ZRE1BYpnY5hRTGdiZUsfHekizuwLG7ehX0Nz3pWAEL2xyYEy2FZnCdD5zHICUTdN5Je6ZkkdNohs0wgxSI7b71T19tQMUHcWlgVOBGA9iNgv9NF3u3LUKFfOdvlS5cBIr6CRSD1eYPZeHyR/3hWRqyHfpe6tzNf8k9KxZy0PQqFJmIUdNnMB1eA7q1joakNLIRkLhjaZzzbgjhNgBPOG93RfqrPqm9SJamHlsutQ1Yh0qB0Zr3/HC8OplZSU/kR3ebzhF024uk/Mnz7riNzQW4bXb1vK71ApYUYGmChsxgt5lZRwqyZ1ofUKo/8IpY9mjVv1SV7DqRQbyQny9bk78EgUAIFvzrn0Adlx1k3mOxnVRdeeMjhVusFI4ZDeFLLXcJ8Ie7h1BygeK5FZw2vbY7Vx+yikCQWAUDTOjYA11UdUCXigGoucQMK6E3Ovlq8k6FtEoruHQlsPuBwJ3XwM7DEWAjGKOalxRg4mIm1vQlXeaG4CXXuuLMurO1MDEVSPLYZ1Ok6lgxMLeIblzMAD3Gsvk40l2AeMRmFpC0ZH+ZuQr7R+5JK4HWLDMdzKFQSNijdBSwKUdFvuN9rieJmIg/3SbDZjkyDSAdZ8RzHH/nmshLsWae2yp2MZVgjhOq/5Bh2yazb/YXfexy3028DNQAn4AcGucpC8L4SxB4oR46LzoA61g6y0J/TOZPm0Uc3JdR5g/Zr5orUtzUx5JcYzC5QNjl4/D0zRu0og38CMwWl0iQYNx9y2L1+aZ9NtfwjhDl7pcSTRliTpaPSNJp6ej0Vy6V1sS+nYPhH1SbnN0PHics6sxsk2K/Tud8Saj5YwEA+RWurRiCGMBLJRZc/UNpDQIbi6J8i0muKK8M1P4XkC78zyWe8Qr6baxtoOHvFxJ9n+Y6v4DUd0yoev3YK46u1cj8mNEh3NG+FxdAc1MQs2WfFVkqkji2auHz6qVDKe1bRK3eFioXjBkbRMcnLUQSIASf9AYRwAxvvO2pa7Nh/h7ri6GZ80KjjIziEo4vxQMyO9tv+wUhZziCY3yt2iIanCrwhIGx1+gxZNJS19au+QZWZWhaa4wxpNM4ZQU+enGLXKpXUPEa9SKkP8bXzUMoskie/NUc3Vcq6+RyN84B+vrnh1Uf7Ax4IaVgTO2Xsc8n716OM6QW/7q/GkQuBKuurJFeDbrzqNs7o0ShKVvCwHd5WmmzKI3kbzzxOBn6jFjqgV+vmvcUquEyHv2HptaBQPWOTuOUhOaDuVcovbYef3vuz+bAKaTCXTHidGxS4eZNbhMKapkgB91vQ7HVANYdecHUdRjD3Oj7k1W2jr2wZSxjGp15HM2TnVKAcX7YsurFEVBGjmXVpgW4/brQlNdN+60eX5AJVUQxNmvG8ob+WgIissrS5Gn/0yXBL0zOodAilw3zkMv/dA4VopPJckEWmB+evIiOPHPBQ/F34NLzH3TuMnKtOZSShlTX8rjwyxLwAVWZMOynhHTRxpd6R2wdYDoqzwBghDRMUqeGaJBvkKLHM8rrQNcAuoTNi4vpk4NZTkwzLuBAtLys6Xjzs+htu8e+pE2c4lSW2Bz/WWIIlL0h/GdHAqCM2cmLW9xW7Q6HccUBxFlO8aaec5xXQaksbPa+CDMIpW/Mzub7t4uzxql3iK56KLhcnumNVW+J3k90uUWGo82iybcyYeACPCo/5SWjRWMZG4N7Bv+0ls9v+I26qepMuOHTJuzHCesknZNU90OuJ4682XGoNKNSc5znOcuakSLDMKPsHs6lGW5IgU2mVrWs0AD+/tAcAaUs02hBFUBHNqpvRjVqotiyHZyi4va7PCbqTKVZaiwLMjgHFVbEAZE43gQrKHbWiT2Wpj83UnbFPJeLSKBtlMC9Qq3GmWNl7mjYPfET3zzJW+Qd/DlV5CniYlc1/wMqlhkYgCH+XOBtFZz7Bnhmclo6o3XAA8S5f2q1I/QaKLYhLYTWUbKB1Tqrnchq1oKCSkgmVvzbFk/WTi3TvvpuhuzlKSXA2Aqj5Nmpn28Ifw6Erco6b2uIFUOpjYx+WAAwPK2JbZbnmgMJdYkmAoX21Q5qTFTHKWxBLzfpOneo3t9QJXjjy5I5MSdSE/aaIO4dBuedR0J3vjCZihuZglgZ7oFCWdrWzmo/Srx6kDPpuL9kyj4soMjeGBuuav8kWGGNtQcVYBaCimXOcaLUU8D8JUK+jb701OwuF4VryNyIZ296am9HGWb04LBw+EvGtq5C1OmvzieHu4gWJ3dXvkTh8QLOL4CfP7JN/POLg41ifFExoD4A5zMLlbf1BV12Kba5D4/48RCv21E8K1IEFHu9G6m98lQFFPwnTR2tuR2A3HxXWr/liSFXaLOvKebsoxc5jRJ7qeRolMW/X+kIkb/z0fRVOvDbpx6yu0lvGFKAKbGTvRWBTMnb2/fgAM5O0Bu+vDmSEsbgY67Y+05SbfEbCThesclrbtm1NDM7+v8+GuEoAEHF1deUfo+GJCBAP6n+I7cXJAUFsSIaWp+0qPQDaAKBHYI/64pDc2UGvb0TqfNaE/CtWnSuC11PB9tAzk1OfmKFowSzAA9c7WtR9wAORqBQi8YNzmMsABiLx/0X4SoqHxsfcCs31MerzFFG+WX+KMN7G3Q1XBgjCOP0CzWTOiO3Oq6fauuhsEt8k26s2vaNYa2xKITbTSgFdRoxS0NykdBAGmoCdPrx2MBepXycQuEwXhMKxfZdWWV/KOoxACSYok/G0ETFy2aKTxKNf4plBOQgOyviy98sIEDvF59QSEGip1POQqO8qunEgnLaWYwDUztqkGyDCfJSdai5NGQHej0ka6T16VsN7dWLaPSmd1OKtImrRRsgjmxd5wwQi+psA/OFooOQDCXLth//WQH7SSBxum4U5VhZs0QAEw/9P5KeEckLmomPCPWy1sIHq+6vq1cyWxCQ38U8+WgWWfNonO5W5Hx8SGHKv8Gsri9ZgGvsSOtzRw4T8giYp+fFKmmVtQMage4W0OUVZukslnjMLs/AiPem/2cX2qwczJYPGwLj3pLVM535UGY0SgI7Tsx/hldJwUJcbpPOTEmzR3YNjpTdFFWKiqhEHChD0yssZWGunaD2VF8iG3/iq8fcC2JJAQ3U4miAb+st3UEuQKCtQtLN7sf0RJ94ktJ8iCt887xXIM9jmmUTQ9GGjZrDAlf/Y1KcQGkv/9RC5dmBR75rFubhmAEYw6fGcYNL+O+F1pTSUsvCk2M/Q+V6TlcnLh7jswpGkMS8XaSSK8vL1KYoHTjI33W9K2qJiZdufklB1LmcaaQ8blQrDOx6hKaalc4HqMjxZL9TE8609aHDLajgEsPsK39W7cFfqNiYESmZATmCXFsnt4cchCq/q2Sr6nDqBGccrvAbzUyd8w1C1GXlK3wpPghjAXGkCzhqP0D+mLpOJ/C9Kd15tsXtV17s3URYJSMDYolz9ZYOYrGRXveSobL7oQaAhco4wp/tOTXBZV6Mj9fD+BEhE3AQln1sMYQUl4okuaycCgo01BMte2Zu560Qvw6KIz8hj/Iv/0MNgtK1jb6wLzUUggDsqQc7x6eGJeWQpFPYBuk7pRV9+q7TBE1AsKE1dz68pMIebmawsaXSeM0WBNii/jzhmZzc4V5C4eQG71x2rUp7giOAOiPdbTXCBeJCFSd9MS7bvH8457aq3+8I6Bs4gbgHammISdf6+EHkNKV2D3Sn5tDQ0YEZXq21bx4y+i9WgktXg8FVwx6vd4MnshgD+/f2ahDTsoJg17dkmKttmMBWUKszDMKOI1cQ1d5MehDK0itz3ITh8+yjGInNMIAdQRlNAq9efv9QEzlvYv13xRwYpQpzoSP+nhkwBYCP3ButWtDZ84ieF0jVKAs3AzU7D3z/XdQDMTmwmqyNh4SqXk1lngBHVJ9K66udHGVJeaGrY7udU1wDoJEWwWUiz30e74Ys7IEeqjawyr3GfsiM6gmI1Ruucu2oMCLjAMGeIIrUmqMfzohhE6pbPajPjmh9+UoyLHCWzvjBxqyIF0u2bzlHOjWaWNLAhBX9mDbWbs7yRzEU9nz8fDxo/VfVyV3BCNrib8kM2iErZtcXxTSgp89EF4qay345Ek9IsHYtj9d6TeX59YTJglNr4c9cvsjWgXlePl5eqSxT1HgCkej99Vg371oo3vbeZxTo3ptykLeuT6adme4oUeozTbS0HUfK+ps2U1hx5LTD2x3JX5SAsH3fU2L3ZrIosZfu7/JHQ47GqNJZZEBma3chG4+C3QzDDezR3oidDhUHWcJlcE56hGFrjhU7FAsxtAfcY3kMflsEYpdIWbwVvxSW0yOYK0Z2mv2re5tP8KZg1S/A2+/vB5oDG8GA8yDnVHfo6deP10l6YZAOYNNNuFCOQQ//rB/7CWltFA9l3BnW+ht97+iZx4jQrsidqbzr765ih41IuzfHnHCs5R85rKR60181f2qFa/i/gqmIFaw66YLKuQZYJ+qnx7V/eTOrAN3J/pzs5Hfea/KesKx0TR/RydLOQGKLQMwcra6+4zMtX2C5tfK267AD2e7MD3UrR2q4hz56SfdDhOBrWHUSgJiHJWw1fTOXwlwTeOeBVfHNyGdmTnV8XPN91Uay/FItKsa1UB9/e3v33F+IdVtjRY3w4wf85YmoSNGKhG6mMguY/WmIvVruqkmiVgi8pAJVcvX4rsotkLW6m//nOEscb8jlUjO4Qs+9DLhCv7HGFy0SgDPH6rGWZxTbYhGNtaJcDYQHGwIGjn9eX/+VrG6QEZ9UX9RLpJRD2VLYHpeSHdWWKgO4Vrms1J1/J7HB/tXgsDFhYSk2u4/5R9kJ1PvZTr9O7yx5SWeaz8eUZBQVGhLhSGdAFJ3WV35Yx26S3S+sdwhw0q/npCh/LQjEOvrWUVEYW4DaA7mHuHLUgRqGTsW3v/sk8ijzLYBVkoTKgB+uuc4xdcw+lOyeOl7EQoGuV2L/CiXyipCwUZ6ijZEcSYCRnpciKHqyHI6TlawKQV/4U/2YLof0UHasoclcIUw7EH8nRE/r6BIjsOEwoazm6bYSxiU0GCWW9maaQSrwIEhOSC0K1uBYm6GJ2FFFJcd5FR1hHCNqBa/VshRlhWoAmIMPsfbI33vFpL3hrgLCCR4PJYQNcuhOYKQv1Y/gMXVDwZXgrRIx+Q8VUbUcvxdFBh4KNvUTRElPDSWF7GG06ETQxz0OiNObNCjl8FHdZ7+jBssCZtqIQL3857R8LKUM3qEROlVFPnn6CUrXSau9T0bw6mSQGDLP45fBy91AJLfewFFwE7s0XbSlqHyeDtQDqImuxUZTViGFN1DDKX+tNHnWbQlg/61zFmWMvscDVaZSOAFj9ZI1xzbueIiVm6WE9P97ndLcAMhgtaVZMkkHMJyLONAdC9D2Tj+/SI7IK2f/7H1kP1gir1bVJtXInd2HSWhLFKGZ0nEhzcMbLZIXUYg1kWqYXOaOXzrIbQBL1dGN5ltDkcYe6BIeBqFc9bcYtITaqgfSOd6BYzZYCrsJGTC0YTbTaQq4Pe4X5Jd6FHVNtX8HL/J1sNYLKCmjfY+rW0/CjrGGN7cGesyioV5k8MeL/uv0J7P/tFMBiNgaxsEWFxoIvU+AHJjKh/naJkaJQjjxJUT3Pnz3NDueEYaYT52F7Ns7gmgvhwpWpA2KiphWsHRaqblmdl00muSUFeXvM0e17aWjsBOxOHvlRa7SEuiPBcTHhYLn7m289UKGSAdTyhEZJWhDDkpvI8MSQGvphLa/hyZk/znD66OSORwN49nUjRcJmw7oIsKngoHfDVLQyUrFVkaIBHZmz4gvMpvD6x13hmFkUS2631yqKYMNns8VuAazCMIs1u0PzKm7eUlPnxXtke1MARZZCvk4iNINu5w+C/0wZTqntvb6tzDe3ufyzot1txlIEdfnsiM6SSZ3B/y8PJPKLvCd1llslywxmZ/ndzBzpFEdf5lQen83eI5cYxif4fRthLJaQAM1J34beiagKcuChQqHt441rSNsYbTZ20RnOUMfudoiZcAhAuswXoOdKC63BP9hc0Xhw6WiEf/ZKO20eyF0e/kMgFLW4HNb33bYwkrHKjOZtnyvKnDLbf+Xt3arkTuClhCKayiDCnapNGhCIwBkRJumb7+EGSphCycg6SrqpLsrkOZEAR1+Qy7Te74LNPragTm4swJQS3lXbapCHrHoF1pqxd3xW20vxXirIyVXZuJdPNCFh15I8e2t6Yv1A4Sgj5syt2m6+QLGexQ/1pAFUH3L6wT7rZ3aFYXva6TpZF3oWdGtHb+aZL11ZThPdftbKVZKr1tUXG2vTmCVfvkhP51fksLAuAYL+Zgu54TTc+dJmbQ2gO2hbSDOpZkPWA9fVraa5rpKApRLAguMZy+NzDvXhx5i2gCceRdwhjG0iQHB8xyfGh+BLQNMc+B7f7lQlI52iO5OEXdikRFHsowYE3eMrUkQfM1VnbvITIWRpL+npyf8oCMK+QjV5a9DO79brwneDyQxqmVM58OxYfeZXC9Lwfxl30x8G1AwX8udTY30CoEuMuvKRXgUxAiM3pRVnghW6XsB5q/mDja5vKqyQRVYzQ5qAkAxSrXtbYdAhvZNcvIi/w5SBmgKve+V/cS6QxCUIY3sJD7/sHFilgmpNKOZNqEPCl/xWWW/XUsObD5e+b5QBVcyEmPtsb4YhjitZ9rHppMu9nhvOjHkxreNJl61e9E4wyH/nEy5KvD2jyWez85MwQZsii6rQg5kJ7dF5z7qxKMYjykGxqqLp3yUJB2f3hP7/uuDYtrcIvxcE5s/p40697sAWPBxUPrLgzj4nvb6qv/qxW7PZm7fRscUWhb5wFTm8zEhGyq+oG81UUMsi9Goz7hC4IEjoOhMq64lNFpTcFfYnj+iecmNZqVsRQg4y06YRYBDrDbo/uM1eBdM+OqOfSX30cG6sq5NoYtHvMNpmmpzxhJgdkxnxv8FdNbXxoen503PZldFU68nvfor96w1Ouz6qph0NQ+YR4NWvAu5SRyxQV1d33XZa+sZzpo40zi6JgkC9jocsWnnrNdBwD7LJwDgk3NTAWgDR7PiOs1ytULFRd6o/lyr+WUZ3FryaIEKrGN9CvPdk+9h/pyKluGHfuQ/+t5hLrHISH3HBWWn0OG7KyXQpTn1oZGALgDrCHWk0Fh2EsB2FVzlG8AMr6ReRD2JVaOTxh1pKTALNLmMEqYokDTpcwS3rjBDdNGQ7T7lcY3pGbPIkn3yZ5txgFrmp3Jrf7hCzxNFSDft2je+98VK8AutKKaVMZ6/e1bAvrcU6QTItAnHURK8IMlHhhCFWVMwqf8wPVU9+duhXLp7ptXJGkLM5WGwCjqx0eVvK8NWZmWF6XupozZ8AQ2glnaIvK8EyaU8MsE/MQBZEWnf4sP3YPRXI6N3GHaqV57pwyp8daPbra3ss0UiW4+BAgdhOa9PXo5wAGyAha3bOVlDtPenjB6M+ebQIlvJLgnSXOaGyRHIyZdaVnGjVHehyw7jGBrA4HOug3VehYbGBRw//qimeIwVWVEdEoRCNMxeH/RxyGP4icrAoRjzKUgdcTdM9HZjaNfNyxG2FCbot0Wz/H3ZHVEbOon5ZpZLKM8fh1CuUI2iRZHF/YBvmqyRFIn5KgKsev2K/bnKE/CBrV7fqvrucnKM/7Aa9ftk+vkunQnSVJ9jcRtCFWO6P84bKl0xaH1m6R+vDyDuwpecujmdfHJavYGwVIxQ3449qGPcuC/Wf/oNhzQFrmmESHQCkaDtJ4HiZGhKoT2mRLiEj6HDxW9/rhIHaugIUNoza1WLE//MC74G7E7/WHkRvp3CGAeTiRyF2pD7nA2usRSRD8xJB4KgxjdPDeYNuw5Hymif5Zstrypnwk/594ULga3hWGv6KNCuEzbtXr3E8uQosDtGzYabXULMsD6NHCE7RAeBiEG6LkGTj0L0zi1OmIgZItnf6a2KGSc3OVpClR84GzgbeYSewMX1uWSYhQV8O6bAWHtMVqy4Qyk9WaNSVO6XTC7mGCCkW8Dc2GkDmqwuVMxSemVBmPu3gTJfkU0cnd86vC15iHKf9NJU82cNH5JGayM/oqgwA2RwN71ikOQJDACu605COKVFoXnQx6nzMk4/7a9Er3Rm+mm+H7SaBDFZG4uHCdEokt1OT/gJAs9zDVMec32xB4RaND9q7v+a9Yrz9SG/o/sAM3Ypvj54fLHbVJSvMLZbx5GBhWUtduHe/W56AXHCLDlmSN8DtgO15atlGhZ48ocSjkDZebsarfTOLq1of4oYaFqbo0QwzWF/HoJS2pp8O0zAqMTaGENLmwOJ1fpoaN0UMb19mzdH86Fhn6U9xLxLvsPxFALQb4uBSCgb7xMi3fKPw9VfIf5Umop8Y0Swyn/rB3QPjeNeYLj29Cxm8DKSlPfCrPZJoocz6nmnqk8975sTRqTa7Wt9G0l/hHbc/u8YOTFZM7cquOgKfvg7O37aI2hwQDm5mr9g5F9wEtus0hoE2ZumvHRDiwJgVrvyI/EFcEejp+ELcXZ0yq+TN9LBHdW+D9bii914Zg0kBCjdpZ0HMhbcSQEbtgLDhYVKd/h+6Ow0EtXx/T6Qh8LxsbXoca+G3ISfxNMdQF2VWomAyG7UVMVjaKQC6j6FRSWJVFRFlLNhRsRk6pDedIkI7cMKN6UdBcq7oF71swCRnKYcvJCdYna0AWKokynGxz4PAAcqSFsXfJmDTF3Jc/wdIdNiHRC3t7epQtUPwajh85JcDpMWnLbNcOwo65n5DNEg5FSv68pUm5GMK/g4BqekAGVZidXmqBmZAY76H8A81IyyW2fIZqqVjPL1wmMPH+0Apjhh9DKOMExPD8/J927Hw8z3knt5MacdXxDf5/ZC4C84xkOvdclOvRtdbAl6SF39ijgtNDnr4RTsCk4jDYKiH+s6WPFmwLkYG2W5ErikuQst0BCMWL5WipW5IC5EYtaFypLTGehxTem3WMB235Fh5COEyqsCK/9xcRTqorETyp99TmAU+upZ7nuXe9g5abFQExuGaAFjSCmicoZ0kWRhEf1cSvmUtWECStxZsGuX3ubNYc8S0T0j8cCKR0n6oiCJrrywjA+GD9lw52gbgRlWS3Kgjo6j0nYpagsNwo4YIrNZ4Z/+GJQcb8jyYJmXaFw6JusCWLyHh+7rsaOCpAUbNGNcRiqcalcvYXG8XC83Je7A9tc0I0LbtPdAvSgzwaLnz49KJryRPKowET03XCtcp0wW9rjG7VT5726lX2McfWCAtXJK8jiGFZkVfvcu1NC3QdHwDnXM+FRm7XnNpSfS1ii3d6ABDFTZgZ6m6J2ZirbTWP7j46VI2HUiKPeK30N3bco4oQ91TXycqD88F3QQoHVNNXXrAXqaTXXLKpHmg5JVCkGHVXn8byoq1jFZSKHP28VrWLDsfJDjOK9/rWH7m071EEWkubPOpjLS4iLk7gRbATBSHWEiIZ9rL+xJGTnrDr9hJNuiS5dSi6vKmCE2UhsqkF48Sjay7r7IsC9CP9O7vRsb5hVwjmlXpcc3kEwZA+hsgd03VuzWDgQUNtZHfqEinGBAALzu9j78/TZsGDyoaFkPUqE41OeFsuioRN17JbCHJjUV/bMFdS/gSIeFm1LsRrhpgXKBiVyUSm2wgn6IDh//7s/+2uVxXY6BlGmJovsoVpj/fZKR0BU6YjTJi5EBS5n0MQtHXjmwG1eKQfWfDquhdqiDo3j0njZKB4ZwYnb2kZuOzHrimXdemNMvgSlc+7EfknG1qKJsTQHG/Dzisr8ivR3xBLuZG09AHTSJxCjoCdb1WmipvcQHhqaoCFTJMsUWbkgpQ/8xoENkohYz/RRieW4nReUPU15l/1al6vVtMIO7RitRgBg0WNNryjYPYxYfM1YzhZMfrDt7PqCj6HVVNlgEbG0P3lmLBhw6yyQ8HA6T63ZLe4bKWA68yQb//7KTIQBuEBn9W00eSjHABDkB8/EtGJ8Yhv8wgXrmoctYqVCJFn7EGrkMlxfwYxBgeJGsIJWFY/Yp5tB5n7RZYhbcLVDOxCF7uvqnJxv0N7jdnkiino0S6aicpgp2F3L9nTd3dUzQq2YAHJ1TqKjMHxsi2VPk13cuhofJEzPWYBCVnmqJV7roz72cbxQBCpKjeWQQaI34i/lluTxVgPMx210oiFSW06QG3VTXuz59n0bsuTJ5NYGBdg1EoESitCT8CbtZrqzDT1aBPpLpdFbCfKuPvPqsqfQ/OZQlchEAEtM4Kx+cODAuAGgjEZhHExrXG+S4Gz24LEyCgZEmtdoM4/DGDZR/tFMUduxWzG2p2kvwO/nPBDvxpv+VHUVsun8AZrDwZYxiLGV/wO0OqBNvGr4rhCOcdSYKZTLNQ8qbo4uqi2nVWF0ZhIL0TddtvEH93evzYWBvNx0ps4g3LHExwGBAsEynGFQ9E62CcwLf3qrUT8MBRNl9ik3uMngsJajehqn5EnDFSoHmFUwv9ME2Eqldgm4p6fCQwoUsCRDgxlf+8hdwMPVSXRL3BBel7Q4zN4LojhMY00VH7O6Xyjnb3qWZZPMd4Am0YyRaf6KO55TAbyzcdE1W4EKTexu5byhgH5PAiJGTayHI6qyjxHwvFhPT6E5J+6QTFyZHt7jHnsnurQdEP9r2zh58lziYTZ1AjbEUcr0dS1eCLMHoa1ezVVeiXHE73Ptl3sKIwGweoktyx2d33nJPClQeSiVUFaVYiO+wlO9HxoNegOu4nuBM4lVr4gAAp71PKtxjmUcA3mg/UuJaHLqnp1alGySuw4M4Y8PJ1VbyHns4wvsdHgkYhzklBlJL7t3RRYX2TrVrdazwIjWRMDKf1j2XIgvRGFgyB/z+URVQAv2zN8KTG7blh/MRDgIPbtbAbXuPmRKpd4Gg0U7qMungQ0btqlW3VETe6fOdnCQEmR4HnLPWmyjIqocz2M+V6wKm/wnQ281+mW6PkAxT3IeiNhFXzDVGineM4zsgVOpoOJCDwhunvjxS/eZUOMBKcXiKCz1APvhYmwpcrOo1uNUqTsP8CjPcU86IhQxDHVhgkXjxZ6jtKdQh1YGAxuaFw/OhBmd4s/gACDMtiR9tJM67AeDo+e2hRsZPfnjBuY0dsDSK1T3iToBTHbTxAJnCg33HaUuT8fg5tKX2xYEcj+ly0w08BT/lytKMoTUPMMKC4KtwUC6swla2AmnJsLkoSSiNtgXQT4E/lNp1a1bZ6QJpXgh089NGqbbkl0IMTePqnFLoYBXohiEsL3PXJC70kzE7zKCpYmYGKLXdsCBv/W0y1iW9RJYbhpbOQnS6CV9aNjy+Owxhmyje46+OzQPtGlecWnPSGgMERYz9EXAJILPogXKUc9xyMBERfVLEQ1B6/c5CWOE7zB/MP3p16AAAAodcltR6vKMJA3UwZ06S0B1K6JhZpEg4Jn/kiPILLM0+dIgsCRqEQfgeC49Dun1Sdz67Kbiehbjt6d5NSDnC0p8TV/h5Y2H/tnbM27TIAdqr4W9WQpFCpoCe/8k1QRuds8/WvCfmG4WUYCCB5HeHqQxdgGlt61Z0Jy+9NXEQKO3Zh5t3+3PYHJ26igpy2bp440w6pmG/GCJeR8uAAAAA9XI7bLhZowO3AmBBUS+9x+NM3LWfToJ+8yYoOxQJd+TTMboEv7H4Q9wAZiHYJc8bqu/AXF7knjAAAAAAAA==";
+
+// ---------------------------------------------------------------- Karte
+const CELL = 4, WALL_H = 5, EYE = 1.65;
+const MAP = [
+  "####################",
+  "#P.....#.....#.....#",
+  "#......#.....#..S..#",
+  "#..TT..#..T..#.....#",
+  "#..TT.....T.....T..#",
+  "#......#..T..#.....#",
+  "###.####.....###.###",
+  "#.......##.##......#",
+  "#..S...............#",
+  "#......#.....#..S..#",
+  "#..T...#..S..#..T..#",
+  "#......#.....#.....#",
+  "###.####.....###.###",
+  "#......##...##.....#",
+  "#..S.........T..S..#",
+  "#......#.....#.....#",
+  "#..TT..#..T..#.....#",
+  "#..TT.....T.....S..#",
+  "#......#.....#.....#",
+  "####################",
+];
+const H = MAP.length, W = Math.max(...MAP.map(r => r.length));
+const grid = new Uint8Array(W * H);
+let startCell = { x: 1, z: 1 };
+const spawnCells = [];
+for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) {
+  const ch = MAP[z][x] || '#';
+  grid[z * W + x] = ch === '#' ? 1 : ch === 'T' ? 2 : 0;
+  if (ch === 'P') startCell = { x, z };
+  if (ch === 'S') spawnCells.push({ x, z });
+}
+const cellIdx = (x, z) => {
+  const cx = Math.floor(x / CELL), cz = Math.floor(z / CELL);
+  return (cx < 0 || cz < 0 || cx >= W || cz >= H) ? -1 : cz * W + cx;
+};
+const solid = (x, z) => { const i = cellIdx(x, z); return i < 0 || grid[i] !== 0; };
+const blocked = (x, z, r) => solid(x - r, z - r) || solid(x + r, z - r) || solid(x - r, z + r) || solid(x + r, z + r);
+function tryMove(p, dx, dz, r) {
+  if (!blocked(p.x + dx, p.z, r)) p.x += dx;
+  if (!blocked(p.x, p.z + dz, r)) p.z += dz;
+}
+// DDA-Strahl über das Raster (horizontal). dx,dz normiert. Liefert Distanz bis zur Wand.
+function castGrid(ox, oz, dx, dz, max) {
+  const x = ox / CELL, z = oz / CELL;
+  let cx = Math.floor(x), cz = Math.floor(z);
+  const sx = dx > 0 ? 1 : -1, sz = dz > 0 ? 1 : -1;
+  const tdx = dx !== 0 ? Math.abs(1 / dx) : Infinity, tdz = dz !== 0 ? Math.abs(1 / dz) : Infinity;
+  let tmx = dx !== 0 ? (dx > 0 ? (cx + 1 - x) : (x - cx)) * tdx : Infinity;
+  let tmz = dz !== 0 ? (dz > 0 ? (cz + 1 - z) : (z - cz)) * tdz : Infinity;
+  const maxc = max / CELL; let t = 0;
+  while (t < maxc) {
+    if (tmx < tmz) { cx += sx; t = tmx; tmx += tdx; } else { cz += sz; t = tmz; tmz += tdz; }
+    if (cx < 0 || cz < 0 || cx >= W || cz >= H || grid[cz * W + cx]) return Math.min(t * CELL, max);
+  }
+  return max;
+}
+function los(ax, az, bx, bz) {
+  const d = Math.hypot(bx - ax, bz - az); if (d < 0.01) return true;
+  return castGrid(ax, az, (bx - ax) / d, (bz - az) / d, d) >= d - 0.05;
+}
+// Flow-Field (BFS) vom Spieler aus – Gegner finden so durch die Gänge
+const flow = new Int16Array(W * H);
+function buildFlow(px, pz) {
+  flow.fill(-1);
+  const s = cellIdx(px, pz); if (s < 0) return;
+  const q = [s]; flow[s] = 0;
+  for (let h = 0; h < q.length; h++) {
+    const i = q[h], x = i % W, z = (i / W) | 0;
+    for (const [ox, oz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nx = x + ox, nz = z + oz; if (nx < 0 || nz < 0 || nx >= W || nz >= H) continue;
+      const n = nz * W + nx; if (grid[n] || flow[n] >= 0) continue;
+      flow[n] = flow[i] + 1; q.push(n);
+    }
+  }
+}
+
+// ---------------------------------------------------------------- Renderer & Szene
+const canvas = document.getElementById('gl');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+renderer.setSize(innerWidth, innerHeight, false);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0505);
+scene.fog = new THREE.Fog(0x0a0505, 8, 58);
+const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 200);
+camera.rotation.order = 'YXZ';
+scene.add(camera);
+addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+});
+
+const rnd = (a, b) => a + Math.random() * (b - a);
+function canvasTex(size, draw, repeat = true) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  draw(c.getContext('2d'), size);
+  const t = new THREE.CanvasTexture(c);
+  if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return t;
+}
+function grain(g, s, amt) {
+  const d = g.getImageData(0, 0, s, s), p = d.data;
+  for (let i = 0; i < p.length; i += 4) { const n = (Math.random() - 0.5) * amt; p[i] += n; p[i+1] += n; p[i+2] += n; }
+  g.putImageData(d, 0, 0);
+}
+const TEX = {};
+TEX.brick = canvasTex(256, (g, s) => {
+  g.fillStyle = '#1c0f0b'; g.fillRect(0, 0, s, s);
+  const bh = 32, bw = 64;
+  for (let r = 0; r < s / bh; r++) for (let c = -1; c < s / bw + 1; c++) {
+    const off = (r % 2) * bw / 2, v = rnd(-18, 18);
+    g.fillStyle = `rgb(${110 + v},${44 + v * .4},${34 + v * .3})`;
+    g.fillRect(c * bw + off + 2, r * bh + 2, bw - 4, bh - 4);
+    g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(c * bw + off + 2, r * bh + bh - 7, bw - 4, 5);
+    g.fillStyle = 'rgba(255,200,170,.08)'; g.fillRect(c * bw + off + 2, r * bh + 2, bw - 4, 3);
+  }
+  for (let i = 0; i < 14; i++) { // Blutspritzer
+    g.fillStyle = `rgba(${rnd(60,110)},0,0,${rnd(.2,.5)})`;
+    g.beginPath(); g.arc(rnd(0,s), rnd(0,s), rnd(2,10), 0, 7); g.fill();
+  }
+  grain(g, s, 26);
+});
+TEX.tech = canvasTex(256, (g, s) => {
+  g.fillStyle = '#2d3238'; g.fillRect(0, 0, s, s);
+  for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) {
+    const px = x * 128, py = y * 128;
+    g.fillStyle = '#4a525c'; g.fillRect(px + 6, py + 6, 116, 116);
+    g.fillStyle = '#3a4048'; g.fillRect(px + 14, py + 14, 100, 100);
+    g.strokeStyle = '#1a1d22'; g.lineWidth = 3; g.strokeRect(px + 6, py + 6, 116, 116);
+    g.fillStyle = '#7d8691';
+    for (const [rx, ry] of [[12,12],[116,12],[12,116],[116,116]]) { g.beginPath(); g.arc(px + rx, py + ry, 3, 0, 7); g.fill(); }
+  }
+  const glow = g.createLinearGradient(0, 118, 0, 138);
+  glow.addColorStop(0, 'rgba(0,255,180,0)'); glow.addColorStop(.5, 'rgba(60,255,200,1)'); glow.addColorStop(1, 'rgba(0,255,180,0)');
+  g.fillStyle = glow; g.fillRect(0, 118, s, 20);
+  g.fillStyle = '#ffb020'; for (let i = 0; i < 8; i++) g.fillRect(20 + i * 30, 240, 14, 8);
+  grain(g, s, 18);
+});
+TEX.floor = canvasTex(256, (g, s) => {
+  g.fillStyle = '#121010'; g.fillRect(0, 0, s, s);
+  for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) {
+    const v = rnd(-8, 8);
+    g.fillStyle = `rgb(${52 + v},${46 + v},${42 + v})`; g.fillRect(x * 64 + 2, y * 64 + 2, 60, 60);
+    g.fillStyle = 'rgba(255,255,255,.05)'; g.fillRect(x * 64 + 2, y * 64 + 2, 60, 2);
+  }
+  g.strokeStyle = 'rgba(0,0,0,.5)'; g.lineWidth = 1.5;
+  for (let i = 0; i < 6; i++) { g.beginPath(); let x = rnd(0,s), y = rnd(0,s); g.moveTo(x, y); for (let k = 0; k < 5; k++) { x += rnd(-20,20); y += rnd(-20,20); g.lineTo(x, y); } g.stroke(); }
+  grain(g, s, 22);
+});
+TEX.ceil = canvasTex(128, (g, s) => {
+  g.fillStyle = '#16181b'; g.fillRect(0, 0, s, s);
+  g.fillStyle = '#23262b'; g.fillRect(4, 4, s - 8, s - 8);
+  g.fillStyle = '#fff3c4'; g.fillRect(44, 44, 40, 40);
+  g.fillStyle = 'rgba(255,240,180,.25)'; g.fillRect(36, 36, 56, 56);
+  grain(g, s, 14);
+});
+TEX.glow = canvasTex(64, (g, s) => {
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,220,1)'); gr.addColorStop(.25, 'rgba(255,190,60,1)');
+  gr.addColorStop(.6, 'rgba(255,60,0,.5)'); gr.addColorStop(1, 'rgba(255,0,0,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, s, s);
+}, false);
+TEX.flash = canvasTex(64, (g, s) => {
+  g.translate(32, 32);
+  for (let i = 0; i < 9; i++) {
+    g.rotate(Math.PI * 2 / 9);
+    g.fillStyle = 'rgba(255,220,120,.9)';
+    g.beginPath(); g.moveTo(0, -4); g.lineTo(rnd(18, 31), 0); g.lineTo(0, 4); g.fill();
+  }
+  const gr = g.createRadialGradient(0, 0, 0, 0, 0, 16);
+  gr.addColorStop(0, '#fff'); gr.addColorStop(1, 'rgba(255,200,80,0)');
+  g.fillStyle = gr; g.beginPath(); g.arc(0, 0, 16, 0, 7); g.fill();
+}, false);
+TEX.medkit = canvasTex(64, (g, s) => {
+  g.fillStyle = '#eee'; g.fillRect(0, 0, s, s); g.fillStyle = '#c00'; g.fillRect(24, 10, 16, 44); g.fillRect(10, 24, 44, 16);
+  g.strokeStyle = '#888'; g.lineWidth = 4; g.strokeRect(2, 2, 60, 60);
+}, false);
+TEX.ammo = canvasTex(64, (g, s) => {
+  g.fillStyle = '#4b5320'; g.fillRect(0, 0, s, s); g.fillStyle = '#ffd24a'; g.font = 'bold 15px Impact, sans-serif';
+  g.textAlign = 'center'; g.fillText('AMMO', 32, 38); g.strokeStyle = '#2a2f10'; g.lineWidth = 4; g.strokeRect(2, 2, 60, 60);
+}, false);
+
+// ---------------------------------------------------------------- Welt aufbauen
+(function buildWorld() {
+  const geo = new THREE.BoxGeometry(CELL, WALL_H, CELL);
+  for (const [type, tex] of [[1, TEX.brick], [2, TEX.tech]]) {
+    const cells = []; for (let i = 0; i < grid.length; i++) if (grid[i] === type) cells.push(i);
+    const mat = new THREE.MeshPhongMaterial({ map: tex, shininess: type === 2 ? 40 : 6, specular: type === 2 ? 0x333333 : 0x111111 });
+    const im = new THREE.InstancedMesh(geo, mat, cells.length);
+    const m = new THREE.Matrix4();
+    cells.forEach((i, k) => { m.makeTranslation((i % W + .5) * CELL, WALL_H / 2, (((i / W) | 0) + .5) * CELL); im.setMatrixAt(k, m); });
+    scene.add(im);
+  }
+  const fTex = TEX.floor; fTex.repeat.set(W, H);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(W * CELL, H * CELL), new THREE.MeshPhongMaterial({ map: fTex, shininess: 15, specular: 0x222222 }));
+  floor.rotation.x = -Math.PI / 2; floor.position.set(W * CELL / 2, 0, H * CELL / 2); scene.add(floor);
+  const cTex = TEX.ceil; cTex.repeat.set(W, H);
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(W * CELL, H * CELL), new THREE.MeshPhongMaterial({ map: cTex, emissive: 0x111111, emissiveMap: cTex }));
+  ceil.rotation.x = Math.PI / 2; ceil.position.set(W * CELL / 2, WALL_H, H * CELL / 2); scene.add(ceil);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.22));
+  scene.add(new THREE.HemisphereLight(0x8090ff, 0x401808, 0.35));
+  const lamps = [[3.5, 3.5, 0xff3311], [10.5, 8.5, 0x33ffbb], [16.5, 4.5, 0xffaa22], [3.5, 15.5, 0x5566ff], [10.5, 14.5, 0xff2255], [16.5, 16.5, 0x66ff44]];
+  for (const [x, z, c] of lamps) { const l = new THREE.PointLight(c, 1.4, 22, 1.6); l.position.set(x * CELL, WALL_H - .5, z * CELL); scene.add(l); }
+})();
+
+const playerLight = new THREE.PointLight(0xffe2b8, 0.9, 26, 1.4); camera.add(playerLight);
+const muzzleLight = new THREE.PointLight(0xffc060, 0, 20, 2); muzzleLight.position.set(.3, -.2, -1); camera.add(muzzleLight);
+
+// ---------------------------------------------------------------- Waffen (am Kamera-Körper)
+const gunRoot = new THREE.Group(); gunRoot.position.set(.3, -.3, -.55); camera.add(gunRoot);
+const metal = new THREE.MeshPhongMaterial({ color: 0x50565e, shininess: 90, specular: 0x888888 });
+const darkMetal = new THREE.MeshPhongMaterial({ color: 0x24272b, shininess: 50 });
+const wood = new THREE.MeshPhongMaterial({ color: 0x5c3a1e, shininess: 20 });
+function box(w, h, d, mat, x, y, z) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); return m; }
+function cyl(r, l, mat, x, y, z) { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, l, 12), mat); m.rotation.x = Math.PI / 2; m.position.set(x, y, z); return m; }
+const shotgun = new THREE.Group();
+shotgun.add(cyl(.034, .8, metal, -.037, .02, -.38), cyl(.034, .8, metal, .037, .02, -.38),
+  box(.15, .12, .3, darkMetal, 0, 0, .05), box(.1, .13, .34, wood, 0, -.05, .32), box(.13, .08, .24, wood, 0, -.06, -.26));
+const chaingun = new THREE.Group();
+const spinner = new THREE.Group(); spinner.position.z = -.3;
+for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; spinner.add(cyl(.022, .7, metal, Math.cos(a) * .06, Math.sin(a) * .06, -.1)); }
+spinner.add(cyl(.09, .05, darkMetal, 0, 0, -.38), cyl(.09, .05, darkMetal, 0, 0, .1));
+chaingun.add(spinner, cyl(.12, .3, darkMetal, 0, 0, .1), box(.06, .16, .08, darkMetal, 0, -.12, .15));
+gunRoot.add(shotgun, chaingun);
+const flashMat = new THREE.SpriteMaterial({ map: TEX.flash, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
+const muzzle = new THREE.Sprite(flashMat); muzzle.scale.set(.45, .45, 1); muzzle.position.set(0, .02, -.85); muzzle.visible = false; gunRoot.add(muzzle);
+
+const WEAPONS = [
+  { name: 'SCHROT', model: shotgun, rate: .72, dmg: 13, pellets: 8, spread: .065, ammo: 30, max: 60, auto: false, kick: 1 },
+  { name: 'MINIGUN', model: chaingun, rate: .075, dmg: 11, pellets: 1, spread: .022, ammo: 150, max: 400, auto: true, kick: .25 },
+];
+
+// ---------------------------------------------------------------- Audio (synthetisch)
+let AC = null, master, noiseBuf;
+function audio() {
+  if (!AC) {
+    try {
+      AC = new (window.AudioContext || window.webkitAudioContext)();
+      master = AC.createDynamicsCompressor(); master.connect(AC.destination);
+      noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
+      const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    } catch (e) { AC = null; }
+  }
+  if (AC && AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function sNoise(dur, freq, vol, freqEnd) {
+  const ac = audio(); if (!ac) return; const t = ac.currentTime;
+  const src = ac.createBufferSource(); src.buffer = noiseBuf;
+  const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(freq, t);
+  if (freqEnd) f.frequency.exponentialRampToValueAtTime(freqEnd, t + dur);
+  const g = ac.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+  src.connect(f); f.connect(g); g.connect(master); src.start(t, Math.random() * .5); src.stop(t + dur);
+}
+function sTone(f0, f1, dur, type, vol, delay = 0) {
+  const ac = audio(); if (!ac) return; const t = ac.currentTime + delay;
+  const o = ac.createOscillator(); o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(f1, 1), t + dur);
+  const g = ac.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + dur);
+}
+const SFX = {
+  shotgun() { sNoise(.4, 2400, .9, 200); sTone(140, 40, .25, 'square', .25); },
+  minigun() { sNoise(.09, 3000, .35, 600); sTone(220, 80, .05, 'square', .08); },
+  empty() { sTone(900, 700, .04, 'square', .1); },
+  laugh(p = 1) { for (let i = 0; i < 4; i++) sTone(330 * p + i * 15, 200 * p, .09, 'sawtooth', .07, i * .12); },
+  growl(p = 1) { sTone(170 * p, 55 * p, .45, 'sawtooth', .13); },
+  pain(p = 1) { sTone(420 * p, 160 * p, .18, 'sawtooth', .12); },
+  death(p = 1) { sTone(360 * p, 30, .8, 'sawtooth', .18); sNoise(.5, 900, .3, 100); },
+  fireball() { sTone(500, 110, .45, 'triangle', .12); sNoise(.3, 800, .12); },
+  boom() { sNoise(.35, 700, .35, 80); },
+  hurt() { sTone(240, 80, .25, 'square', .18); },
+  pickup() { sTone(620, 620, .07, 'triangle', .2); sTone(930, 930, .1, 'triangle', .2, .07); },
+  spawn() { sTone(80, 400, .5, 'sine', .15); },
+  wave() { [0, .15, .3].forEach((d, i) => sTone(220 * (i + 2), 220 * (i + 2), .14, 'square', .1, d)); },
+  swap() { sTone(300, 500, .06, 'square', .08); },
+};
+
+// ---------------------------------------------------------------- Gesichtstexturen
+const faceImg = new Image();
+function makeFaceTextures(img) {
+  const w = img.width, h = img.height;
+  const mk = fn => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); fn(g, c); return new THREE.CanvasTexture(c); };
+  const eyes = [[.38, .5], [.76, .53]];
+  TEX.face = mk(g => g.drawImage(img, 0, 0));
+  TEX.rage = mk(g => {
+    g.drawImage(img, 0, 0);
+    g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(255,20,0,.38)'; g.fillRect(0, 0, w, h);
+    g.globalCompositeOperation = 'lighter';
+    for (const [ex, ey] of eyes) {
+      const gr = g.createRadialGradient(ex * w, ey * h, 0, ex * w, ey * h, w * .11);
+      gr.addColorStop(0, 'rgba(255,255,160,1)'); gr.addColorStop(.35, 'rgba(255,40,0,.9)'); gr.addColorStop(1, 'rgba(255,0,0,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    }
+  });
+  TEX.dead = mk(g => {
+    g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, w, h), p = d.data;
+    for (let i = 0; i < p.length; i += 4) { const l = (p[i] * .3 + p[i+1] * .59 + p[i+2] * .11) * .75; p[i] = l * 1.05; p[i+1] = l * .9; p[i+2] = l * .9; }
+    g.putImageData(d, 0, 0);
+    g.globalCompositeOperation = 'source-atop';
+    g.strokeStyle = '#000'; g.lineWidth = w * .035; g.lineCap = 'round';
+    for (const [ex, ey] of eyes) {
+      const r = w * .06; g.beginPath();
+      g.moveTo(ex * w - r, ey * h - r); g.lineTo(ex * w + r, ey * h + r); g.moveTo(ex * w + r, ey * h - r); g.lineTo(ex * w - r, ey * h + r); g.stroke();
+    }
+    for (let i = 0; i < 9; i++) { g.fillStyle = `rgba(${rnd(110,170)},0,0,.85)`; g.beginPath(); g.arc(rnd(.2,.8) * w, rnd(.15,.9) * h, rnd(5, 18), 0, 7); g.fill(); }
+  });
+}
+
+// ---------------------------------------------------------------- Partikel
+const particles = [];
+const pGeo = new THREE.BoxGeometry(1, 1, 1);
+const pMats = {
+  blood: new THREE.MeshBasicMaterial({ color: 0x9a0000 }),
+  blood2: new THREE.MeshBasicMaterial({ color: 0x5a0000 }),
+  spark: new THREE.MeshBasicMaterial({ color: 0xffd060 }),
+  dust: new THREE.MeshBasicMaterial({ color: 0x777066 }),
+  fire: new THREE.MeshBasicMaterial({ color: 0xff6a00 }),
+  green: new THREE.MeshBasicMaterial({ color: 0x40ff80 }),
+};
+function burst(pos, n, kind, speed = 4, size = .08, life = .6) {
+  for (let i = 0; i < n; i++) {
+    let p;
+    if (particles.length > 380) { p = particles.shift(); } else { p = { m: new THREE.Mesh(pGeo, pMats[kind]) }; scene.add(p.m); }
+    p.m.material = pMats[kind === 'blood' && Math.random() < .4 ? 'blood2' : kind];
+    p.m.position.copy(pos); const s = size * rnd(.6, 1.4); p.m.scale.set(s, s, s); p.m.visible = true;
+    p.v = new THREE.Vector3(rnd(-1, 1), rnd(-.2, 1.2), rnd(-1, 1)).multiplyScalar(speed * rnd(.3, 1));
+    p.life = life * rnd(.6, 1.3); p.grav = kind === 'green' || kind === 'fire' ? -2 : 14; p.kind = kind;
+    particles.push(p);
+  }
+}
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i]; p.life -= dt;
+    if (p.life <= 0) { scene.remove(p.m); particles.splice(i, 1); continue; }
+    p.v.y -= p.grav * dt; p.m.position.addScaledVector(p.v, dt);
+    if (p.m.position.y < .02) { p.m.position.y = .02; p.v.set(0, 0, 0); if (p.kind.startsWith('blood')) p.m.scale.y = .01; }
+    if (p.kind === 'fire' || p.kind === 'green' || p.kind === 'spark') p.m.scale.multiplyScalar(1 - dt * 2.5);
+  }
+}
+
+// ---------------------------------------------------------------- Gegner
+const TYPES = {
+  imp:    { hp: 60,  speed: 3.6, scale: 1.0, color: 0x7a2416, ranged: true,  dmg: 9,  cd: 1.9, score: 100, shots: 1, pitch: 1 },
+  runner: { hp: 32,  speed: 7.5, scale: .78, color: 0x355a22, ranged: false, dmg: 8,  cd: .75, score: 150, shots: 0, pitch: 1.5 },
+  brute:  { hp: 380, speed: 2.4, scale: 1.45, color: 0x47184a, ranged: true, dmg: 13, cd: 2.3, score: 700, shots: 3, pitch: .6 },
+};
+const EGEO = {
+  torso: new THREE.BoxGeometry(.95, 1.05, .55), belly: new THREE.BoxGeometry(.75, .35, .5),
+  leg: new THREE.BoxGeometry(.32, .95, .34), arm: new THREE.BoxGeometry(.26, .9, .26),
+  claw: new THREE.ConeGeometry(.12, .28, 5), horn: new THREE.ConeGeometry(.1, .55, 6),
+  facePlane: new THREE.PlaneGeometry(1, 1.32),
+};
+const hornMat = new THREE.MeshPhongMaterial({ color: 0xd9cfa6, shininess: 70 });
+const legMat = new THREE.MeshPhongMaterial({ color: 0x1d100c, shininess: 10 });
+const enemies = [];
+const projectiles = [];
+let enemySeq = 0;
+
+class Enemy {
+  constructor(typeKey, x, z) {
+    const t = this.t = TYPES[typeKey]; this.type = typeKey;
+    this.x = x; this.z = z; this.hp = t.hp; this.s = t.scale; this.r = Math.min(.45 * t.scale, .75);
+    this.dead = false; this.deadT = 0; this.pain = 0; this.flash = 0; this.state = 'chase'; this.wind = 0;
+    this.atkCd = rnd(.6, 1.6); this.phase = Math.random() * 6; this.id = enemySeq++; this.growlT = rnd(2, 6);
+    const g = this.g = new THREE.Group(); g.rotation.order = 'YXZ';
+    this.mat = new THREE.MeshPhongMaterial({ color: t.color, shininess: 25, emissive: 0x000000 });
+    const torso = new THREE.Mesh(EGEO.torso, this.mat); torso.position.y = 1.5; g.add(torso);
+    const belly = new THREE.Mesh(EGEO.belly, legMat); belly.position.y = 1.0; g.add(belly);
+    this.legs = []; this.arms = [];
+    for (const s of [-1, 1]) {
+      const lp = new THREE.Group(); lp.position.set(.23 * s, .95, 0);
+      const leg = new THREE.Mesh(EGEO.leg, legMat); leg.position.y = -.47; lp.add(leg); g.add(lp); this.legs.push(lp);
+      const ap = new THREE.Group(); ap.position.set(.62 * s, 1.95, 0);
+      const arm = new THREE.Mesh(EGEO.arm, this.mat); arm.position.y = -.45; ap.add(arm);
+      const claw = new THREE.Mesh(EGEO.claw, hornMat); claw.position.set(0, -1.0, .05); claw.rotation.x = Math.PI; ap.add(claw);
+      g.add(ap); this.arms.push(ap);
+      const horn = new THREE.Mesh(EGEO.horn, hornMat); horn.position.set(.46 * s, 3.15, -.05); horn.rotation.z = -.55 * s; g.add(horn);
+    }
+    this.sm = new THREE.SpriteMaterial({ map: TEX.face, fog: true, transparent: true, alphaTest: .05 });
+    this.head = new THREE.Sprite(this.sm); this.head.position.y = 2.55; this.baseHead = [1.1, 1.45];
+    this.head.scale.set(1.1, 1.45, 1); g.add(this.head);
+    g.scale.setScalar(this.s);
+    g.position.set(x, 0, z);
+    scene.add(g);
+    this.spawnT = .45; g.scale.setScalar(.01);
+  }
+  damage(n, dir) {
+    if (this.dead) return;
+    this.hp -= n; this.flash = 1;
+    this.x += dir.x * .06 * n / this.s; this.z += dir.z * .06 * n / this.s;
+    if (blocked(this.x, this.z, this.r)) { this.x -= dir.x * .06 * n / this.s; this.z -= dir.z * .06 * n / this.s; }
+    if (this.hp <= 0) return this.die();
+    if (Math.random() < (this.type === 'brute' ? .15 : .55)) { this.pain = .14; this.state = 'chase'; this.sm.map = TEX.face; }
+    if (Math.random() < .35) SFX.pain(this.t.pitch);
+  }
+  die() {
+    this.dead = true; this.deadT = 0; this.head.visible = false;
+    const fp = new THREE.Mesh(EGEO.facePlane, new THREE.MeshBasicMaterial({ map: TEX.dead, transparent: true, alphaTest: .05, side: THREE.DoubleSide, fog: true }));
+    fp.position.set(0, 2.55, .2); fp.scale.set(1.1, 1.1, 1); this.g.add(fp);
+    SFX.death(this.t.pitch);
+    burst(new THREE.Vector3(this.x, 2 * this.s, this.z), 30 * this.s, 'blood', 6, .085, 1.4);
+    game.kills++; game.score += this.t.score * (1 + (game.wave - 1) * .25) | 0; game.combo++;
+    const r = Math.random();
+    if (r < .22) spawnPickup('health', this.x, this.z); else if (r < .45) spawnPickup('ammo', this.x, this.z);
+    if (this.type === 'brute') spawnPickup('health', this.x + .8, this.z);
+    updateHud();
+  }
+  update(dt) {
+    const g = this.g;
+    if (this.spawnT > 0) { this.spawnT -= dt; g.scale.setScalar(this.s * Math.max(.01, 1 - this.spawnT / .45)); if (this.spawnT > 0) return; g.scale.setScalar(this.s); }
+    if (this.dead) {
+      this.deadT += dt;
+      const k = Math.min(1, this.deadT / .45);
+      g.rotation.x = -Math.PI / 2 * (k * k); g.position.y = .25 * this.s * k;
+      if (this.deadT > 12) { g.position.y -= (this.deadT - 12) * .5; if (this.deadT > 14) { scene.remove(g); return false; } }
+      return true;
+    }
+    const dx = player.x - this.x, dz = player.z - this.z, dist = Math.hypot(dx, dz);
+    g.rotation.y = Math.atan2(dx, dz);
+    if (this.flash > 0) { this.flash = Math.max(0, this.flash - dt * 7); }
+    this.mat.emissive.setRGB(this.flash * .9, this.flash * .1, 0);
+    this.sm.color.setRGB(1, 1 - this.flash * .7, 1 - this.flash * .7);
+    const time = performance.now() / 1000;
+
+    if (this.pain > 0) { this.pain -= dt; this.sm.rotation = Math.sin(time * 60) * .2; this.syncPos(); return true; }
+
+    this.atkCd -= dt; this.growlT -= dt;
+    if (this.growlT <= 0) { this.growlT = rnd(4, 9); if (dist < 30) (Math.random() < .5 ? SFX.laugh : SFX.growl)(this.t.pitch); }
+    const sees = dist < 50 && los(this.x, this.z, player.x, player.z);
+    const meleeR = 1.4 + this.r;
+
+    if (this.state === 'windup') {
+      this.wind -= dt;
+      const up = this.melee ? 1.9 : 2.6;
+      for (const a of this.arms) a.rotation.x += (-up - a.rotation.x) * Math.min(1, dt * 14);
+      this.head.scale.set(this.baseHead[0] * 1.12, this.baseHead[1] * 1.12, 1);
+      this.sm.rotation = Math.sin(time * 40) * .12;
+      if (this.wind <= 0) {
+        if (this.melee) {
+          if (dist < meleeR + .6) hurtPlayer(this.t.dmg, this);
+          for (const a of this.arms) a.rotation.x = .6;
+        } else if (sees) this.shoot();
+        this.state = 'chase'; this.sm.map = TEX.face;
+        this.atkCd = this.t.cd * rnd(.7, 1.3);
+      }
+    } else {
+      const canMelee = dist < meleeR;
+      const canRange = this.t.ranged && sees && dist < 34 && dist > 3;
+      if (this.atkCd <= 0 && sees && (canMelee || canRange)) {
+        this.state = 'windup'; this.melee = canMelee; this.wind = canMelee ? .22 : (this.type === 'brute' ? .7 : .5);
+        this.sm.map = TEX.rage; if (!canMelee) SFX.growl(this.t.pitch * 1.3);
+      } else if (dist > meleeR * .8) this.move(dt, dx, dz, dist, sees);
+      // Laufanimation
+      this.phase += dt * (this.t.speed * 2.1);
+      const sw = Math.sin(this.phase);
+      this.legs[0].rotation.x = sw * .75; this.legs[1].rotation.x = -sw * .75;
+      this.arms[0].rotation.x = -sw * .6; this.arms[1].rotation.x = sw * .6;
+      const bounce = Math.abs(Math.cos(this.phase));
+      this.head.scale.set(this.baseHead[0] * (1 + bounce * .05), this.baseHead[1] * (1 - bounce * .04 + Math.sin(time * 9 + this.id) * .03), 1);
+      this.sm.rotation = Math.sin(this.phase * .5) * .14;
+      g.position.y = bounce * .12 * this.s;
+    }
+    this.syncPos();
+    return true;
+  }
+  move(dt, dx, dz, dist, sees) {
+    let tx, tz;
+    if (sees && dist < 22) { tx = dx / dist; tz = dz / dist; }
+    else {
+      const ci = cellIdx(this.x, this.z); let best = ci, bd = flow[ci] >= 0 ? flow[ci] : 9999;
+      if (ci >= 0) {
+        const cx = ci % W, cz = (ci / W) | 0;
+        for (const [ox, oz] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]) {
+          const nx = cx + ox, nz = cz + oz; if (nx < 0 || nz < 0 || nx >= W || nz >= H) continue;
+          const n = nz * W + nx; if (grid[n] || flow[n] < 0) continue;
+          if (ox && oz && (grid[cz * W + nx] || grid[nz * W + cx])) continue;
+          const v = flow[n] + (ox && oz ? .4 : 0);
+          if (v < bd) { bd = v; best = n; }
+        }
+      }
+      const gx = (best % W + .5) * CELL - this.x, gz = (((best / W) | 0) + .5) * CELL - this.z, gl = Math.hypot(gx, gz) || 1;
+      tx = gx / gl; tz = gz / gl;
+    }
+    // Abstand zu anderen Gegnern
+    for (const o of enemies) {
+      if (o === this || o.dead) continue;
+      const ox = this.x - o.x, oz = this.z - o.z, d = Math.hypot(ox, oz), min = this.r + o.r + .1;
+      if (d < min && d > .001) { tx += ox / d * (min - d) * 2; tz += oz / d * (min - d) * 2; }
+    }
+    // Seitliches Ausweichen ("Strafen") für mehr Dynamik
+    if (sees) { const st = Math.sin(performance.now() / 600 + this.id * 1.7) * .45; tx += -dz / dist * st; tz += dx / dist * st; }
+    const tl = Math.hypot(tx, tz) || 1, sp = this.t.speed * dt * (game.wave > 4 ? 1.15 : 1);
+    tryMove(this, tx / tl * sp, tz / tl * sp, this.r);
+  }
+  shoot() {
+    SFX.fireball();
+    const from = new THREE.Vector3(this.x, 2.3 * this.s, this.z);
+    const to = new THREE.Vector3(player.x, player.y + EYE - .2, player.z);
+    const base = to.sub(from).normalize();
+    const n = this.t.shots;
+    for (let i = 0; i < n; i++) {
+      const a = n > 1 ? (i - (n - 1) / 2) * .16 : 0;
+      const d = base.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), a);
+      spawnProjectile(from.clone().addScaledVector(d, .8 * this.s), d.multiplyScalar(this.type === 'brute' ? 15 : 13), this.t.dmg, this.type === 'brute' ? 1.3 : .9);
+    }
+  }
+  syncPos() { this.g.position.x = this.x; this.g.position.z = this.z; }
+}
+
+const projMat = new THREE.SpriteMaterial({ map: TEX.glow, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
+function spawnProjectile(pos, vel, dmg, size) {
+  const s = new THREE.Sprite(projMat); s.scale.set(size, size, 1); s.position.copy(pos); scene.add(s);
+  projectiles.push({ s, vel, dmg, life: 5 });
+}
+function updateProjectiles(dt) {
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i]; p.life -= dt;
+    p.s.position.addScaledVector(p.vel, dt);
+    p.s.material.rotation += dt * 10;
+    const pos = p.s.position;
+    if (Math.random() < .5) burst(pos, 1, 'fire', .8, .1, .35);
+    let hit = p.life <= 0 || solid(pos.x, pos.z) || pos.y < 0 || pos.y > WALL_H;
+    if (!hit && Math.hypot(pos.x - player.x, pos.z - player.z) < .6 && pos.y > player.y && pos.y < player.y + EYE + .4) { hurtPlayer(p.dmg); hit = true; }
+    if (hit) {
+      burst(pos, 14, 'fire', 4, .12, .5); SFX.boom();
+      scene.remove(p.s); projectiles.splice(i, 1);
+    }
+  }
+}
+
+// ---------------------------------------------------------------- Pickups
+const pickups = [];
+const pickupGeo = new THREE.BoxGeometry(.6, .45, .6);
+const pickupMats = { health: new THREE.MeshPhongMaterial({ map: TEX.medkit, emissive: 0x331111 }), ammo: new THREE.MeshPhongMaterial({ map: TEX.ammo, emissive: 0x222200 }) };
+function spawnPickup(kind, x, z) {
+  if (solid(x, z)) return;
+  const m = new THREE.Mesh(pickupGeo, pickupMats[kind]); m.position.set(x, .5, z); scene.add(m);
+  pickups.push({ m, kind, t: Math.random() * 6 });
+}
+function updatePickups(dt) {
+  for (let i = pickups.length - 1; i >= 0; i--) {
+    const p = pickups[i]; p.t += dt; p.m.rotation.y += dt * 2; p.m.position.y = .45 + Math.sin(p.t * 3) * .12;
+    if (Math.hypot(p.m.position.x - player.x, p.m.position.z - player.z) < 1.2) {
+      if (p.kind === 'health') { if (player.hp >= 100) continue; player.hp = Math.min(100, player.hp + 25); showMsg('+25 GESUNDHEIT', 900); }
+      else { WEAPONS[0].ammo = Math.min(WEAPONS[0].max, WEAPONS[0].ammo + 10); WEAPONS[1].ammo = Math.min(WEAPONS[1].max, WEAPONS[1].ammo + 60); showMsg('+MUNITION', 900); }
+      SFX.pickup(); scene.remove(p.m); pickups.splice(i, 1); updateHud();
+    }
+  }
+}
+
+// ---------------------------------------------------------------- Spieler & Spielzustand
+const player = { x: 0, z: 0, y: 0, vy: 0, yaw: 0, pitch: 0, hp: 100, r: .4 };
+const game = { state: 'menu', wave: 0, kills: 0, score: 0, combo: 0, queue: [], spawnT: 0, waveDelay: 0, cooldown: 0, weapon: 0,
+  recoil: 0, flashT: 0, shake: 0, bob: 0, firing: false, best: 0 };
+try { game.best = +localStorage.getItem('grinse-best') || 0; } catch (e) {}
+
+function resetGame() {
+  for (const e of enemies) scene.remove(e.g); enemies.length = 0;
+  for (const p of projectiles) scene.remove(p.s); projectiles.length = 0;
+  for (const p of pickups) scene.remove(p.m); pickups.length = 0;
+  Object.assign(player, { x: (startCell.x + .5) * CELL, z: (startCell.z + .5) * CELL, y: 0, vy: 0, yaw: -Math.PI * .75, pitch: 0, hp: 100 });
+  WEAPONS[0].ammo = 30; WEAPONS[1].ammo = 150;
+  Object.assign(game, { wave: 0, kills: 0, score: 0, queue: [], spawnT: 0, waveDelay: 1.2, cooldown: 0, weapon: 0, recoil: 0, shake: 0 });
+  selectWeapon(0, true); updateHud();
+}
+function startWave() {
+  game.wave++;
+  const n = game.wave, q = [];
+  const total = 5 + n * 3;
+  const brutes = n >= 3 ? Math.floor((n - 1) / 2) : 0;
+  for (let i = 0; i < total - brutes; i++) q.push(n >= 2 && Math.random() < Math.min(.45, .2 + n * .04) ? 'runner' : 'imp');
+  for (let i = 0; i < brutes; i++) q.splice(Math.floor(rnd(q.length * .4, q.length)), 0, 'brute');
+  game.queue = q; game.spawnT = .5;
+  showMsg('WELLE ' + n, 1800); SFX.wave(); updateHud();
+}
+function trySpawn() {
+  const alive = enemies.filter(e => !e.dead).length;
+  if (alive >= 14) return;
+  const far = spawnCells.filter(c => Math.hypot((c.x + .5) * CELL - player.x, (c.z + .5) * CELL - player.z) > 14);
+  const pool = far.length ? far : spawnCells;
+  const c = pool[Math.floor(Math.random() * pool.length)];
+  const x = (c.x + .5) * CELL + rnd(-.8, .8), z = (c.z + .5) * CELL + rnd(-.8, .8);
+  enemies.push(new Enemy(game.queue.shift(), x, z));
+  burst(new THREE.Vector3(x, 1.2, z), 26, 'green', 4, .12, .9);
+  if (Math.hypot(x - player.x, z - player.z) < 30) SFX.spawn();
+}
+function hurtPlayer(n, src) {
+  if (game.state !== 'play') return;
+  player.hp -= n; game.shake = Math.min(1, game.shake + n / 20); game.combo = 0;
+  dmgEl.style.opacity = Math.min(1, .35 + n / 20); SFX.hurt();
+  if (player.hp <= 0) { player.hp = 0; gameOver(); }
+  updateHud();
+}
+
+// ---------------------------------------------------------------- Schießen
+const _v = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3(), _f = new THREE.Vector3();
+function selectWeapon(i, silent) {
+  game.weapon = i; WEAPONS.forEach((w, k) => w.model.visible = k === i);
+  if (!silent) { SFX.swap(); game.recoil = 1.4; }
+  updateHud();
+}
+function fire() {
+  const w = WEAPONS[game.weapon];
+  if (game.cooldown > 0) return;
+  if (w.ammo <= 0) {
+    SFX.empty(); game.cooldown = .3;
+    const other = WEAPONS[1 - game.weapon]; if (other.ammo > 0) selectWeapon(1 - game.weapon);
+    return;
+  }
+  w.ammo--; game.cooldown = w.rate; game.recoil = Math.min(1.5, game.recoil + w.kick); game.flashT = .055;
+  muzzle.material.rotation = Math.random() * 6; muzzle.position.z = game.weapon === 0 ? -.85 : -.75;
+  (game.weapon === 0 ? SFX.shotgun : SFX.minigun)();
+  camera.updateMatrixWorld();
+  _r.setFromMatrixColumn(camera.matrixWorld, 0); _u.setFromMatrixColumn(camera.matrixWorld, 1); _f.setFromMatrixColumn(camera.matrixWorld, 2).negate();
+  const origin = new THREE.Vector3(); camera.getWorldPosition(origin);
+  let anyHit = false;
+  for (let i = 0; i < w.pellets; i++) {
+    const a = Math.random() * Math.PI * 2, s = Math.sqrt(Math.random()) * w.spread;
+    _v.copy(_f).addScaledVector(_r, Math.cos(a) * s).addScaledVector(_u, Math.sin(a) * s).normalize();
+    if (hitscan(origin, _v, w.dmg)) anyHit = true;
+  }
+  if (anyHit) { hitEl.style.opacity = 1; setTimeout(() => hitEl.style.opacity = 0, 80); }
+  if (game.weapon === 1) player.pitch += .004; // leichter Rückstoß
+  updateHud();
+}
+function hitscan(o, d, dmg) {
+  let tMax = 120;
+  const hl = Math.hypot(d.x, d.z);
+  if (hl > 1e-6) tMax = castGrid(o.x, o.z, d.x / hl, d.z / hl, 120) / hl;
+  if (d.y < 0) tMax = Math.min(tMax, -o.y / d.y);
+  if (d.y > 0) tMax = Math.min(tMax, (WALL_H - o.y) / d.y);
+  let best = null, bt = tMax;
+  for (const e of enemies) {
+    if (e.dead || e.spawnT > 0) continue;
+    const r = .55 * e.s, top = 3.25 * e.s;
+    const t = rayBox(o, d, e.x - r, 0, e.z - r, e.x + r, top, e.z + r);
+    if (t !== null && t < bt) { bt = t; best = e; }
+  }
+  const hit = o.clone().addScaledVector(d, bt);
+  if (best) {
+    const head = hit.y > 1.85 * best.s;
+    best.damage(dmg * (head ? 2 : 1), d);
+    burst(hit, head ? 10 : 6, 'blood', 3.5, .09, .9);
+    return true;
+  }
+  hit.addScaledVector(d, -.05);
+  burst(hit, 4, 'spark', 3, .05, .3); burst(hit, 3, 'dust', 1.5, .07, .5);
+  return false;
+}
+function rayBox(o, d, x0, y0, z0, x1, y1, z1) {
+  let tmin = 0, tmax = Infinity;
+  for (const [oo, dd, a, b] of [[o.x, d.x, x0, x1], [o.y, d.y, y0, y1], [o.z, d.z, z0, z1]]) {
+    if (Math.abs(dd) < 1e-9) { if (oo < a || oo > b) return null; continue; }
+    let t1 = (a - oo) / dd, t2 = (b - oo) / dd; if (t1 > t2) [t1, t2] = [t2, t1];
+    tmin = Math.max(tmin, t1); tmax = Math.min(tmax, t2); if (tmin > tmax) return null;
+  }
+  return tmin;
+}
+
+// ---------------------------------------------------------------- Eingabe
+const keys = {};
+const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+if (isTouch) document.body.classList.add('is-touch');
+let locked = false, dragLook = false;
+addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (game.state !== 'play') return;
+  if (e.code === 'Digit1') selectWeapon(0);
+  if (e.code === 'Digit2') selectWeapon(1);
+  if (e.code === 'KeyQ') selectWeapon(1 - game.weapon);
+  if (e.code === 'Space') { jump(); e.preventDefault(); }
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+addEventListener('wheel', e => { if (game.state === 'play') selectWeapon(1 - game.weapon); }, { passive: true });
+canvas.addEventListener('mousedown', e => {
+  if (isTouch || game.state !== 'play') return;
+  if (!locked && !dragLook) { requestLock(); }
+  if (e.button === 0) { game.firing = true; fire(); }
+});
+addEventListener('mouseup', e => { if (e.button === 0) game.firing = false; });
+addEventListener('mousemove', e => {
+  if (game.state !== 'play' || isTouch) return;
+  if (locked || (dragLook && e.buttons)) look(e.movementX, e.movementY, .0022);
+});
+function look(dx, dy, sens) {
+  player.yaw -= dx * sens; player.pitch -= dy * sens;
+  player.pitch = Math.max(-1.45, Math.min(1.45, player.pitch));
+}
+function requestLock() {
+  try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => { dragLook = true; }); } catch (e) { dragLook = true; }
+}
+document.addEventListener('pointerlockchange', () => {
+  locked = document.pointerLockElement === canvas;
+  if (!locked && game.state === 'play' && !isTouch && !dragLook) pause();
+});
+document.addEventListener('pointerlockerror', () => { dragLook = true; });
+function jump() { if (player.y <= 0.001) player.vy = 6.5; }
+
+// Touch-Steuerung
+const touch = { moveId: null, mx: 0, my: 0, ox: 0, oy: 0, lookId: null, lx: 0, ly: 0 };
+const joy = document.getElementById('joy'), knob = document.getElementById('joyKnob');
+function onTouchStart(e) {
+  if (game.state !== 'play') return;
+  for (const t of e.changedTouches) {
+    const el = t.target;
+    if (el.id === 'fireBtn') { game.firing = true; fire(); touch.fireId = t.identifier; continue; }
+    if (el.id === 'swapBtn') { selectWeapon(1 - game.weapon); continue; }
+    if (el.id === 'jumpBtn') { jump(); continue; }
+    if (t.clientX < innerWidth * .45 && touch.moveId === null) {
+      touch.moveId = t.identifier; touch.ox = t.clientX; touch.oy = t.clientY; touch.mx = touch.my = 0;
+      joy.style.left = (t.clientX - 60) + 'px'; joy.style.top = (t.clientY - 60) + 'px'; joy.style.bottom = 'auto';
+    } else if (touch.lookId === null) { touch.lookId = t.identifier; touch.lx = t.clientX; touch.ly = t.clientY; }
+  }
+  e.preventDefault();
+}
+function onTouchMove(e) {
+  for (const t of e.changedTouches) {
+    if (t.identifier === touch.moveId) {
+      let dx = t.clientX - touch.ox, dy = t.clientY - touch.oy; const l = Math.hypot(dx, dy), m = 50;
+      if (l > m) { dx *= m / l; dy *= m / l; }
+      touch.mx = dx / m; touch.my = dy / m; knob.style.transform = `translate(${dx}px,${dy}px)`;
+    } else if (t.identifier === touch.lookId) {
+      look(t.clientX - touch.lx, t.clientY - touch.ly, .0055); touch.lx = t.clientX; touch.ly = t.clientY;
+    }
+  }
+  e.preventDefault();
+}
+function onTouchEnd(e) {
+  for (const t of e.changedTouches) {
+    if (t.identifier === touch.moveId) { touch.moveId = null; touch.mx = touch.my = 0; knob.style.transform = ''; }
+    if (t.identifier === touch.lookId) touch.lookId = null;
+    if (t.identifier === touch.fireId) { game.firing = false; touch.fireId = null; }
+  }
+}
+addEventListener('touchstart', onTouchStart, { passive: false });
+addEventListener('touchmove', onTouchMove, { passive: false });
+addEventListener('touchend', onTouchEnd); addEventListener('touchcancel', onTouchEnd);
+
+// ---------------------------------------------------------------- HUD
+const $ = id => document.getElementById(id);
+const dmgEl = $('dmg'), hitEl = $('hitmark'), msgEl = $('msg'), mini = $('mini').getContext('2d');
+let msgTimer = 0;
+function showMsg(t, ms) { msgEl.textContent = t; msgEl.style.opacity = 1; clearTimeout(msgTimer); msgTimer = setTimeout(() => msgEl.style.opacity = 0, ms); }
+function updateHud() {
+  $('hp').textContent = Math.ceil(player.hp); $('hpBox').classList.toggle('low', player.hp <= 25);
+  const w = WEAPONS[game.weapon]; $('ammo').textContent = w.ammo; $('wname').textContent = w.name; $('ammoBox').classList.toggle('low', w.ammo <= (game.weapon ? 20 : 4));
+  $('wave').textContent = game.wave; $('kills').textContent = game.kills; $('score').textContent = game.score;
+}
+function drawMinimap() {
+  const c = mini.canvas, s = c.width / Math.max(W, H);
+  mini.clearRect(0, 0, c.width, c.height);
+  for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) {
+    const v = grid[z * W + x]; if (!v) continue;
+    mini.fillStyle = v === 2 ? '#4a6870' : '#6a3020'; mini.fillRect(x * s, z * s, s, s);
+  }
+  mini.fillStyle = '#ff2a10';
+  for (const e of enemies) if (!e.dead) { mini.beginPath(); mini.arc(e.x / CELL * s, e.z / CELL * s, e.type === 'brute' ? 3.5 : 2.2, 0, 7); mini.fill(); }
+  mini.fillStyle = '#4dff7a';
+  for (const p of pickups) mini.fillRect(p.m.position.x / CELL * s - 1.5, p.m.position.z / CELL * s - 1.5, 3, 3);
+  const px = player.x / CELL * s, pz = player.z / CELL * s;
+  mini.save(); mini.translate(px, pz); mini.rotate(-player.yaw);
+  mini.fillStyle = '#fff'; mini.beginPath(); mini.moveTo(0, -5); mini.lineTo(3.5, 4); mini.lineTo(-3.5, 4); mini.fill(); mini.restore();
+}
+
+// ---------------------------------------------------------------- Overlay / Zustände
+const ov = $('overlay'), ovBtn = $('ovBtn'), ovTitle = $('ovTitle'), ovText = $('ovText');
+if (isTouch) $('ovKeys').textContent = 'Links ziehen: laufen · Rechts ziehen: zielen · Buttons: Feuer, Waffe, Sprung';
+function startGame() {
+  audio();
+  if (game.state === 'menu' || game.state === 'dead') resetGame();
+  game.state = 'play'; ov.style.display = 'none';
+  if (!isTouch) requestLock();
+  last = performance.now();
+}
+function pause() {
+  game.state = 'paused'; game.firing = false;
+  ovTitle.textContent = 'PAUSE'; ovText.innerHTML = 'Die Grinser warten auf dich.'; ovBtn.textContent = 'WEITER';
+  ov.style.display = 'flex';
+}
+function gameOver() {
+  game.state = 'dead'; game.firing = false;
+  if (document.pointerLockElement) document.exitPointerLock();
+  const rec = game.score > game.best; if (rec) { game.best = game.score; try { localStorage.setItem('grinse-best', game.best); } catch (e) {} }
+  ovTitle.textContent = 'DU WURDEST WEGGEGRINST';
+  ovText.innerHTML = `Welle <b>${game.wave}</b> · <b>${game.kills}</b> Kills · <b>${game.score}</b> Punkte<br>${rec ? '🏆 Neuer Rekord!' : 'Rekord: ' + game.best}`;
+  ovBtn.textContent = 'NOCHMAL';
+  setTimeout(() => ov.style.display = 'flex', 700);
+}
+ovBtn.addEventListener('click', startGame);
+addEventListener('keydown', e => { if ((e.code === 'Enter') && game.state !== 'play' && !ovBtn.disabled) startGame(); if (e.code === 'Escape' && game.state === 'play' && dragLook) pause(); });
+
+// ---------------------------------------------------------------- Hauptschleife
+let last = performance.now(), flowT = 0;
+function step(dt) {
+  // Bewegung
+  let fwd = 0, side = 0;
+  if (keys.KeyW || keys.ArrowUp) fwd += 1; if (keys.KeyS || keys.ArrowDown) fwd -= 1;
+  if (keys.KeyD) side += 1; if (keys.KeyA) side -= 1;
+  if (keys.ArrowLeft) player.yaw += dt * 2.6; if (keys.ArrowRight) player.yaw -= dt * 2.6;
+  fwd -= touch.my; side += touch.mx;
+  const len = Math.hypot(fwd, side);
+  if (len > 1) { fwd /= len; side /= len; }
+  const speed = (keys.ShiftLeft || keys.ShiftRight || (isTouch && len > .9)) ? 11 : 7.5;
+  const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw);
+  const mx = (-sy * fwd + cy * side) * speed * dt, mz = (-cy * fwd - sy * side) * speed * dt;
+  tryMove(player, mx, mz, player.r);
+  const moving = len > .1;
+  if (moving && player.y <= 0) game.bob += dt * speed * 1.4;
+  player.vy -= 18 * dt; player.y = Math.max(0, player.y + player.vy * dt); if (player.y === 0) player.vy = 0;
+
+  // Kamera
+  game.shake = Math.max(0, game.shake - dt * 2.5);
+  const sh = game.shake * .12;
+  camera.position.set(player.x + rnd(-sh, sh), EYE + player.y + Math.sin(game.bob * 2) * .06 * (moving ? 1 : .2) + rnd(-sh, sh), player.z + rnd(-sh, sh));
+  camera.rotation.set(player.pitch + game.recoil * .02, player.yaw, 0);
+
+  // Waffe
+  game.cooldown -= dt;
+  if (game.firing && WEAPONS[game.weapon].auto) fire();
+  game.recoil = Math.max(0, game.recoil - dt * (game.weapon ? 9 : 4));
+  gunRoot.position.set(.3 + Math.cos(game.bob) * .025, -.3 - Math.abs(Math.sin(game.bob)) * .02 - game.recoil * .03, -.55 + game.recoil * .09);
+  gunRoot.rotation.x = game.recoil * .25;
+  if (game.weapon === 1) spinner.rotation.z += dt * (game.firing && WEAPONS[1].ammo > 0 ? 30 : 2);
+  game.flashT -= dt; muzzle.visible = game.flashT > 0; muzzleLight.intensity = game.flashT > 0 ? 3.2 : 0;
+  dmgEl.style.opacity = Math.max(0, parseFloat(dmgEl.style.opacity || 0) - dt * 1.6);
+
+  // KI
+  flowT -= dt; if (flowT <= 0) { buildFlow(player.x, player.z); flowT = .25; }
+  for (let i = enemies.length - 1; i >= 0; i--) if (enemies[i].update(dt) === false) enemies.splice(i, 1);
+  updateProjectiles(dt); updatePickups(dt); updateParticles(dt);
+
+  // Wellen
+  if (game.queue.length) { game.spawnT -= dt; if (game.spawnT <= 0) { trySpawn(); game.spawnT = Math.max(.35, .9 - game.wave * .05); } }
+  else if (!enemies.some(e => !e.dead)) {
+    if (game.waveDelay > 0) { game.waveDelay -= dt; if (game.waveDelay <= 0) startWave(); }
+    else if (game.wave > 0) {
+      game.waveDelay = 3.5; showMsg('WELLE ' + game.wave + ' GESCHAFFT!', 2200);
+      player.hp = Math.min(100, player.hp + 20); WEAPONS[0].ammo = Math.min(WEAPONS[0].max, WEAPONS[0].ammo + 8); WEAPONS[1].ammo = Math.min(WEAPONS[1].max, WEAPONS[1].ammo + 50);
+      updateHud();
+    }
+  }
+}
+let miniT = 0;
+function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (game.state === 'play') step(dt);
+  else if (game.state === 'menu') { // Attract-Modus: langsame Kamerafahrt
+    const t = now / 1000;
+    camera.position.set(W * CELL / 2 + Math.cos(t * .15) * 10, EYE + 1, H * CELL / 2 + Math.sin(t * .15) * 10);
+    camera.rotation.set(-.05, t * .15 + Math.PI, 0);
+  }
+  if (game.state !== 'paused') {
+    if (game.state !== 'play') { for (let i = enemies.length - 1; i >= 0; i--) if (enemies[i].dead && enemies[i].update(dt) === false) enemies.splice(i, 1); updateParticles(dt); }
+  }
+  miniT -= dt; if (miniT <= 0) { drawMinimap(); miniT = .1; }
+  renderer.render(scene, camera);
+}
+
+faceImg.onload = () => {
+  makeFaceTextures(faceImg);
+  $('ovFace').src = FACE_SRC;
+  // ein paar Deko-Grinser für das Startmenü
+  for (let i = 0; i < 5; i++) { const c = spawnCells[i % spawnCells.length]; const e = new Enemy(i === 2 ? 'brute' : 'imp', (c.x + .5) * CELL, (c.z + .5) * CELL); e.spawnT = 0; e.g.scale.setScalar(e.s); enemies.push(e); }
+  buildFlow(W * CELL / 2, H * CELL / 2);
+  ovBtn.disabled = false; ovBtn.textContent = 'START';
+  requestAnimationFrame(loop);
+};
+faceImg.src = FACE_SRC;
+</script>
+</body>
+</html>

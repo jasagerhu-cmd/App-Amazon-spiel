@@ -23,3 +23,7 @@ Die Vorschau auf claude.ai kann diesen Modus nicht nutzen (die Plattform sperrt 
 ## Warum nicht Amazon oder Idealo?
 - Amazon: Die Product Advertising API wurde 2026 durch die Creators API ersetzt. Zugang nur mit Amazon-Partnerprogramm-Konto, das echte Verkäufe nachweisen muss. Scraping verstößt gegen die Nutzungsbedingungen.
 - Idealo: keine öffentliche Schnittstelle zum Lesen von Preisen, nur Händler-Schnittstellen zum Hochladen.
+
+## Grinse-Invasion (doom.html)
+
+Schneller 3D-Shooter im Retro-Stil (Three.js). `doom.html` im Browser öffnen – Desktop (WASD + Maus) und Touch werden unterstützt.
