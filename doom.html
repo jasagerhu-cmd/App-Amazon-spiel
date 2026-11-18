@@ -55,13 +55,13 @@
   body.is-touch #mini { width:96px; height:96px; left:50%; top:6px; transform:translateX(-50%); }
   .joy { position:fixed; bottom:calc(84px + env(safe-area-inset-bottom)); width:120px; height:120px; border-radius:50%; border:2px solid rgba(255,255,255,.25); background:rgba(255,255,255,.06); pointer-events:none; }
   #joyL { left:calc(24px + env(safe-area-inset-left)); } #joyR { right:calc(24px + env(safe-area-inset-right)); }
+  .joy.fire { border-color:rgba(232,51,28,.6); background:rgba(232,51,28,.12); }
   .joy .knob { position:absolute; left:35px; top:35px; width:50px; height:50px; border-radius:50%; background:rgba(255,255,255,.3); }
   .joy .lbl { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:22px; color:rgba(255,255,255,.35); letter-spacing:0; }
   .tbtn { position:fixed; border-radius:50%; background:rgba(232,51,28,.45); border:2px solid rgba(255,255,255,.4); color:#fff;
     display:flex !important; align-items:center; justify-content:center; font-size:14px; letter-spacing:1px; }
   body:not(.is-touch) .tbtn { display:none !important; }
-  #fireBtn { right:calc(30px + env(safe-area-inset-right)); bottom:calc(222px + env(safe-area-inset-bottom)); width:92px; height:92px; }
-  #swapBtn { right:calc(138px + env(safe-area-inset-right)); bottom:calc(240px + env(safe-area-inset-bottom)); width:58px; height:58px; background:rgba(80,80,80,.5); }
+  #swapBtn { right:calc(54px + env(safe-area-inset-right)); bottom:calc(224px + env(safe-area-inset-bottom)); width:58px; height:58px; background:rgba(80,80,80,.5); }
   #fartBtn { left:calc(34px + env(safe-area-inset-left)); bottom:calc(222px + env(safe-area-inset-bottom)); width:76px; height:76px; background:rgba(110,150,30,.55); font-size:13px; flex-direction:column; transition:opacity .2s; }
   #fartBtn i { font-style:normal; font-size:26px; line-height:1; }
   #pauseBtn { left:calc(50% + 62px); top:calc(8px + env(safe-area-inset-top)); width:44px; height:44px; background:rgba(40,40,40,.6); font-size:16px; }
@@ -95,9 +95,8 @@
   <div class="c"><b id="kills">0</b><span>KILLS</span></div>
   <div class="c"><b id="score">0</b><span>PUNKTE</span></div>
 </div>
-<div id="joyL" class="joy touch"><div class="lbl">▲<br>▼</div><div class="knob"></div></div>
-<div id="joyR" class="joy touch"><div class="lbl">◀ ▶</div><div class="knob"></div></div>
-<div id="fireBtn" class="tbtn">FEUER</div>
+<div id="joyL" class="joy touch"><div class="lbl">✥</div><div class="knob"></div></div>
+<div id="joyR" class="joy touch fire"><div class="lbl">🎯</div><div class="knob"></div></div>
 <div id="swapBtn" class="tbtn">WAFFE</div>
 <div id="fartBtn" class="tbtn"><i>💨</i>PUPS</div>
 <div id="pauseBtn" class="tbtn">II</div>
@@ -577,61 +576,111 @@ const WEAPONS = [
 ];
 
 // ================================================================ Audio
-let AC = null, master, noiseBuf;
+let AC = null, master, noiseBuf, reverb;
+const shaperCache = {};
+function shaper(k) {
+  if (shaperCache[k]) return shaperCache[k];
+  const n = 2048, c = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const x = i / (n - 1) * 2 - 1; c[i] = (1 + k) * x / (1 + k * Math.abs(x)); }
+  return shaperCache[k] = c;
+}
 function audio() {
   if (!AC) {
     try {
       AC = new (window.AudioContext || window.webkitAudioContext)();
-      master = AC.createDynamicsCompressor(); master.connect(AC.destination);
+      // Master: harter Kompressor + Nachverstärkung = laut und druckvoll
+      master = AC.createDynamicsCompressor();
+      master.threshold.value = -16; master.knee.value = 4; master.ratio.value = 8; master.attack.value = .002; master.release.value = .12;
+      const post = AC.createGain(); post.gain.value = 1.6; master.connect(post); post.connect(AC.destination);
       noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
       const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      // Hallraum (künstliche Impulsantwort) für Echo in den Gängen
+      const len = AC.sampleRate * 1.8, ir = AC.createBuffer(2, len, AC.sampleRate);
+      for (let ch = 0; ch < 2; ch++) { const b = ir.getChannelData(ch); for (let i = 0; i < len; i++) b[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6); }
+      reverb = AC.createConvolver(); reverb.buffer = ir;
+      const rg = AC.createGain(); rg.gain.value = .5; reverb.connect(rg); rg.connect(master);
       const s = AC.createBufferSource(); s.buffer = AC.createBuffer(1, 1, 22050); s.connect(AC.destination); s.start(0); // iOS-Freischaltung
     } catch (e) { AC = null; }
   }
   if (AC && AC.state === 'suspended') AC.resume();
   return AC;
 }
-function sNoise(dur, freq, vol, freqEnd) {
-  const ac = audio(); if (!ac) return; const t = ac.currentTime;
-  const src = ac.createBufferSource(); src.buffer = noiseBuf;
-  const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(freq, t);
-  if (freqEnd) f.frequency.exponentialRampToValueAtTime(freqEnd, t + dur);
-  const g = ac.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
-  src.connect(f); f.connect(g); g.connect(master); src.start(t, Math.random() * .5); src.stop(t + dur);
+function route(node, o) {
+  let last = node;
+  if (o.dist) { const ws = AC.createWaveShaper(); ws.curve = shaper(o.dist); ws.oversample = '2x'; last.connect(ws); last = ws; }
+  last.connect(master);
+  const wet = o.wet ?? .25; if (wet > 0) { const s = AC.createGain(); s.gain.value = wet; last.connect(s); s.connect(reverb); }
 }
-function sTone(f0, f1, dur, type, vol, delay = 0) {
+function env(g, t, vol, dur, att = .002) {
+  g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + att); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+}
+function sNoise(dur, freq, vol, freqEnd, o = {}) {
+  const ac = audio(); if (!ac) return; const t = ac.currentTime + (o.delay || 0);
+  const src = ac.createBufferSource(); src.buffer = noiseBuf;
+  const f = ac.createBiquadFilter(); f.type = o.type || 'lowpass'; f.Q.value = o.q || .7; f.frequency.setValueAtTime(freq, t);
+  if (freqEnd) f.frequency.exponentialRampToValueAtTime(freqEnd, t + dur);
+  const g = ac.createGain(); env(g, t, vol, dur, o.att);
+  src.connect(f); f.connect(g); route(g, o); src.start(t, Math.random() * .5); src.stop(t + dur + .05);
+}
+function sTone(f0, f1, dur, type, vol, delay = 0, o = {}) {
   const ac = audio(); if (!ac) return; const t = ac.currentTime + delay;
-  const o = ac.createOscillator(); o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(f1, 1), t + dur);
-  const g = ac.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
-  o.connect(g); g.connect(master); o.start(t); o.stop(t + dur);
+  const osc = ac.createOscillator(); osc.type = type; osc.frequency.setValueAtTime(f0, t); osc.frequency.exponentialRampToValueAtTime(Math.max(f1, 1), t + dur);
+  const g = ac.createGain(); env(g, t, vol, dur, o.att);
+  osc.connect(g); route(g, o); osc.start(t); osc.stop(t + dur + .05);
 }
 const SFX = {
-  shotgun() { sNoise(.45, 2400, .9, 180); sTone(140, 38, .28, 'square', .25); },
-  minigun() { sNoise(.09, 3000, .35, 600); sTone(220, 80, .05, 'square', .08); },
-  empty() { sTone(900, 700, .04, 'square', .1); },
-  laugh(p = 1) { for (let i = 0; i < 4; i++) sTone(300 * p + i * 15, 190 * p, .09, 'sawtooth', .07, i * .12); },
-  growl(p = 1) { sTone(160 * p, 50 * p, .45, 'sawtooth', .13); },
-  pain(p = 1) { sTone(400 * p, 150 * p, .18, 'sawtooth', .12); },
-  death(p = 1) { sTone(340 * p, 30, .8, 'sawtooth', .18); sNoise(.5, 900, .3, 100); },
-  fireball() { sTone(500, 110, .45, 'triangle', .12); sNoise(.3, 800, .12); },
-  boom() { sNoise(.35, 700, .35, 80); },
-  explode() { sNoise(1.2, 1800, 1, 40); sTone(90, 25, .9, 'sine', .5); },
-  hurt() { sTone(240, 80, .25, 'square', .18); },
-  pickup() { sTone(620, 620, .07, 'triangle', .2); sTone(930, 930, .1, 'triangle', .2, .07); },
-  spawn() { sTone(80, 400, .5, 'sine', .15); },
-  wave() { [0, .15, .3].forEach((d, i) => sTone(220 * (i + 2), 220 * (i + 2), .14, 'square', .1, d)); },
-  swap() { sTone(300, 500, .06, 'square', .08); },
+  shotgun() {
+    sNoise(.07, 7000, 1.4, 2500, { type: 'highpass', dist: 40, wet: .1 });      // Knall
+    sNoise(.6, 2200, 1.3, 90, { dist: 30, wet: .6 });                             // Druckwelle
+    sTone(120, 30, .4, 'sine', 1.3, 0, { dist: 12, wet: .2 });                    // Bass-Wumms
+    sNoise(.05, 2600, .5, 0, { type: 'bandpass', q: 5, delay: .36, wet: .15 });   // Pumpe: tschk …
+    sNoise(.06, 1700, .6, 0, { type: 'bandpass', q: 5, delay: .48, wet: .15 });   // … tschak
+    sTone(3100, 2900, .05, 'square', .1, .5, { wet: .2 });
+    sTone(4200, 4100, .25, 'triangle', .05, .7, { wet: .3 });                     // Hülse klimpert
+  },
+  minigun() {
+    sNoise(.035, 8000, .8, 3000, { type: 'highpass', dist: 30, wet: .05 });
+    sNoise(.14, 2400, .8, 260, { dist: 30, wet: .3 });
+    sTone(160, 48, .09, 'sine', .8, 0, { dist: 8, wet: .1 });
+  },
+  empty() { sNoise(.03, 4000, .5, 0, { type: 'bandpass', q: 8, wet: .1 }); },
+  hit(head) {
+    sNoise(.09, 900, .9, 180, { type: 'bandpass', q: 1.4, dist: 20, wet: .15 });
+    sTone(180, 55, .1, 'sine', .7, 0, { dist: 6, wet: 0 });
+    if (head) { sTone(1900, 1800, .14, 'triangle', .25, .02, { wet: .3 }); sNoise(.12, 3000, .5, 600, { dist: 25, wet: .2 }); }
+  },
+  laugh(p = 1) { for (let i = 0; i < 5; i++) sTone(310 * p + i * 12, 180 * p, .1, 'sawtooth', .22, i * .12, { dist: 6, wet: .6 }); },
+  growl(p = 1) { sTone(150 * p, 45 * p, .55, 'sawtooth', .4, 0, { dist: 15, wet: .5 }); sNoise(.5, 500 * p, .3, 100, { dist: 10, wet: .4 }); },
+  pain(p = 1) { sTone(420 * p, 140 * p, .2, 'sawtooth', .35, 0, { dist: 12, wet: .3 }); },
+  death(p = 1) {
+    sTone(360 * p, 28, .9, 'sawtooth', .5, 0, { dist: 18, wet: .6 });
+    sNoise(.6, 1100, .7, 90, { dist: 20, wet: .5 });
+    sNoise(.25, 600, .8, 60, { delay: .45, dist: 10, wet: .3 });                   // Aufprall am Boden
+    sTone(90, 35, .2, 'sine', .7, .45, { dist: 6 });
+  },
+  fireball() { sTone(520, 100, .5, 'triangle', .35, 0, { dist: 10, wet: .5 }); sNoise(.45, 900, .4, 200, { dist: 10, wet: .4 }); },
+  boom() { sNoise(.55, 1400, .9, 70, { dist: 25, wet: .5 }); sTone(95, 30, .35, 'sine', .8, 0, { dist: 8 }); },
+  explode() {
+    sNoise(1.8, 3000, 1.6, 35, { dist: 50, wet: .7 });
+    sTone(75, 20, 1.4, 'sine', 1.6, 0, { dist: 14, wet: .3 });
+    for (let i = 0; i < 10; i++) sNoise(.05, rnd(2500, 7000), .5, 0, { type: 'bandpass', q: 3, delay: rnd(.05, .9), wet: .4 });
+  },
+  hurt() { sTone(200, 80, .3, 'sawtooth', .5, 0, { dist: 15, wet: .2 }); sNoise(.15, 700, .7, 120, { dist: 10, wet: .1 }); },
+  pickup() { sTone(620, 620, .07, 'square', .25, 0, { wet: .2 }); sTone(930, 930, .12, 'square', .25, .07, { wet: .3 }); },
+  spawn() { sTone(70, 420, .6, 'sawtooth', .3, 0, { dist: 10, wet: .6 }); },
+  wave() { [0, .35, .7].forEach(d => { sTone(330, 300, .28, 'sawtooth', .35, d, { dist: 20, wet: .5 }); sTone(165, 150, .28, 'square', .25, d, { dist: 10, wet: .3 }); }); },
+  swap() { sNoise(.04, 3500, .6, 0, { type: 'bandpass', q: 7, wet: .1 }); sNoise(.05, 2200, .6, 0, { type: 'bandpass', q: 7, delay: .09, wet: .1 }); },
   fart() {
-    const ac = audio(); if (!ac) return; const t = ac.currentTime, dur = rnd(.55, .95);
+    const ac = audio(); if (!ac) return; const t = ac.currentTime, dur = rnd(.6, 1.0);
     const o = ac.createOscillator(); o.type = 'sawtooth';
     o.frequency.setValueAtTime(rnd(75, 115), t); o.frequency.exponentialRampToValueAtTime(rnd(35, 55), t + dur);
     const lfo = ac.createOscillator(); lfo.frequency.value = rnd(16, 28);
-    const lg = ac.createGain(); lg.gain.value = 28; lfo.connect(lg); lg.connect(o.frequency);
-    const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 650; f.Q.value = 5;
-    const g = ac.createGain(); g.gain.setValueAtTime(.001, t); g.gain.exponentialRampToValueAtTime(.6, t + .04);
-    g.gain.setValueAtTime(.6, t + dur * .7); g.gain.exponentialRampToValueAtTime(.001, t + dur);
-    o.connect(f); f.connect(g); g.connect(master); o.start(t); lfo.start(t); o.stop(t + dur); lfo.stop(t + dur);
-    sNoise(dur * .8, 380, .18);
+    const lg = ac.createGain(); lg.gain.value = 30; lfo.connect(lg); lg.connect(o.frequency);
+    const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 700; f.Q.value = 6;
+    const g = ac.createGain(); g.gain.setValueAtTime(.001, t); g.gain.exponentialRampToValueAtTime(1, t + .04);
+    g.gain.setValueAtTime(1, t + dur * .7); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+    o.connect(f); f.connect(g); route(g, { dist: 4, wet: .35 }); o.start(t); lfo.start(t); o.stop(t + dur); lfo.stop(t + dur);
+    sNoise(dur * .8, 380, .3, 0, { wet: .2 });
   },
 };
 
@@ -1170,16 +1219,18 @@ function fire() {
   camera.updateMatrixWorld();
   _r.setFromMatrixColumn(camera.matrixWorld, 0); _u.setFromMatrixColumn(camera.matrixWorld, 1); _f.setFromMatrixColumn(camera.matrixWorld, 2).negate();
   const origin = new THREE.Vector3(); camera.getWorldPosition(origin);
-  let anyHit = false;
+  let anyHit = false, anyHead = false; hitEnemy = false;
   for (let i = 0; i < w.pellets; i++) {
     const a = Math.random() * Math.PI * 2, s = Math.sqrt(Math.random()) * w.spread;
     _v.copy(_f).addScaledVector(_r, Math.cos(a) * s).addScaledVector(_u, Math.sin(a) * s).normalize();
-    if (hitscan(origin, _v, w.dmg)) anyHit = true;
+    const h = hitscan(origin, _v, w.dmg); if (h) anyHit = true; if (h === 'head') anyHead = true;
   }
+  if (anyHit === true && hitEnemy) SFX.hit(anyHead);
   if (anyHit) { hitEl.style.opacity = 1; setTimeout(() => hitEl.style.opacity = 0, 80); }
   if (game.weapon === 1 && !isTouch) player.pitch += .003;
   updateHud();
 }
+let hitEnemy = false;
 function hitscan(o, d, dmg) {
   let tMax = 120;
   const hl = Math.hypot(d.x, d.z);
@@ -1204,7 +1255,8 @@ function hitscan(o, d, dmg) {
     const head = hit.y > 1.66 * best.s;
     best.damage(dmg * (head ? 2 : 1), d);
     burst(hit, head ? 10 : 6, 'blood', 3.5, .06, .9);
-    return true;
+    hitEnemy = true;
+    return head ? 'head' : 'body';
   }
   hit.addScaledVector(d, -.05);
   burst(hit, 4, 'spark', 3, .035, .3); burst(hit, 3, 'dust', 1.5, .05, .5);
@@ -1278,7 +1330,7 @@ function fart() {
 }
 
 // Touch: links vor/zurück (antippen = springen), rechts lenken
-const touch = { moveId: null, my: 0, ox: 0, oy: 0, moveT: 0, moveDist: 0, turnId: null, tx: 0, tox: 0, fireId: null };
+const touch = { moveId: null, mx: 0, my: 0, ox: 0, oy: 0, moveT: 0, moveDist: 0, turnId: null, tx: 0, ty: 0, tox: 0, toy: 0 };
 const joyL = $('joyL'), knobL = joyL.querySelector('.knob');
 const joyR = $('joyR'), knobR = joyR.querySelector('.knob');
 function placeJoy(el, x, y) { el.style.left = (x - 60) + 'px'; el.style.top = (y - 60) + 'px'; el.style.right = el.style.bottom = 'auto'; }
@@ -1287,16 +1339,16 @@ addEventListener('touchstart', e => {
   if (game.state !== 'play') return;
   for (const t of e.changedTouches) {
     const id = t.target.id;
-    if (id === 'fireBtn') { game.firing = true; fire(); touch.fireId = t.identifier; continue; }
     if (id === 'swapBtn') { selectWeapon(1 - game.weapon); continue; }
     if (id === 'pauseBtn') { pause(); continue; }
     if (id === 'fartBtn' || (t.target.parentElement && t.target.parentElement.id === 'fartBtn')) { fart(); continue; }
     if (t.clientX < innerWidth / 2) {
       if (touch.moveId !== null) continue;
-      touch.moveId = t.identifier; touch.ox = t.clientX; touch.oy = t.clientY; touch.my = 0;
+      touch.moveId = t.identifier; touch.ox = t.clientX; touch.oy = t.clientY; touch.mx = touch.my = 0;
       touch.moveT = performance.now(); touch.moveDist = 0; placeJoy(joyL, t.clientX, t.clientY);
     } else if (touch.turnId === null) {
-      touch.turnId = t.identifier; touch.tox = t.clientX; touch.tx = 0; placeJoy(joyR, t.clientX, t.clientY);
+      touch.turnId = t.identifier; touch.tox = t.clientX; touch.toy = t.clientY; touch.tx = touch.ty = 0; placeJoy(joyR, t.clientX, t.clientY);
+      game.firing = true; fire(); // rechter Stick = Abzug
     }
   }
   e.preventDefault();
@@ -1305,12 +1357,16 @@ addEventListener('touchmove', e => {
   const m = 50;
   for (const t of e.changedTouches) {
     if (t.identifier === touch.moveId) {
-      const dy = Math.max(-m, Math.min(m, t.clientY - touch.oy));
-      touch.moveDist = Math.max(touch.moveDist, Math.hypot(t.clientX - touch.ox, t.clientY - touch.oy));
-      touch.my = Math.abs(dy) < 6 ? 0 : dy / m; knobL.style.transform = `translateY(${dy}px)`;
+      let dx = t.clientX - touch.ox, dy = t.clientY - touch.oy; const l = Math.hypot(dx, dy);
+      touch.moveDist = Math.max(touch.moveDist, l);
+      if (l > m) { dx *= m / l; dy *= m / l; }
+      const dead = l < 7; touch.mx = dead ? 0 : dx / m; touch.my = dead ? 0 : dy / m;
+      knobL.style.transform = `translate(${dx}px,${dy}px)`;
     } else if (t.identifier === touch.turnId) {
-      const dx = Math.max(-m, Math.min(m, t.clientX - touch.tox));
-      touch.tx = Math.abs(dx) < 5 ? 0 : dx / m; knobR.style.transform = `translateX(${dx}px)`;
+      let dx = t.clientX - touch.tox, dy = t.clientY - touch.toy; const l = Math.hypot(dx, dy);
+      if (l > m) { dx *= m / l; dy *= m / l; }
+      touch.tx = Math.abs(dx) < 5 ? 0 : dx / m; touch.ty = Math.abs(dy) < 5 ? 0 : dy / m;
+      knobR.style.transform = `translate(${dx}px,${dy}px)`;
     }
   }
   e.preventDefault();
@@ -1319,10 +1375,9 @@ function onTouchEnd(e) {
   for (const t of e.changedTouches) {
     if (t.identifier === touch.moveId) {
       if (performance.now() - touch.moveT < 260 && touch.moveDist < 14) jump();
-      touch.moveId = null; touch.my = 0; resetJoy(joyL, knobL);
+      touch.moveId = null; touch.mx = touch.my = 0; resetJoy(joyL, knobL);
     }
-    if (t.identifier === touch.turnId) { touch.turnId = null; touch.tx = 0; resetJoy(joyR, knobR); }
-    if (t.identifier === touch.fireId) { game.firing = false; touch.fireId = null; }
+    if (t.identifier === touch.turnId) { touch.turnId = null; touch.tx = touch.ty = 0; resetJoy(joyR, knobR); game.firing = false; }
   }
 }
 addEventListener('touchend', onTouchEnd); addEventListener('touchcancel', onTouchEnd);
@@ -1356,7 +1411,7 @@ function drawMinimap() {
 
 // ================================================================ Overlay
 const ov = $('overlay'), ovBtn = $('ovBtn'), ovTitle = $('ovTitle'), ovText = $('ovText'), qBtn = $('qBtn');
-if (isTouch) $('ovKeys').textContent = 'Links hoch/runter: laufen · Links antippen: springen · Rechts links/rechts: lenken · 💨 Pups-Knopf';
+if (isTouch) $('ovKeys').textContent = 'Linker Stick: laufen in alle Richtungen (antippen = springen) · Rechter Stick: umschauen + schießen · 💨 Pups-Knopf';
 if (isIOS) $('tips').innerHTML = '🔔 Stumm-Schalter am iPhone aus, sonst kein Ton.' + (isStandalone ? '' : '<br>📲 Für Vollbild: Teilen-Symbol → „Zum Home-Bildschirm“, dann übers Icon starten.');
 qBtn.textContent = 'GRAFIK: ' + (QUALITY === 'high' ? 'HOCH' : 'SCHNELL');
 qBtn.addEventListener('click', () => { try { localStorage.setItem('grinse-q', QUALITY === 'high' ? 'low' : 'high'); } catch (e) {} location.reload(); });
@@ -1391,8 +1446,9 @@ function step(dt) {
   if (keys.KeyW || keys.ArrowUp) fwd += 1; if (keys.KeyS || keys.ArrowDown) fwd -= 1;
   if (keys.KeyD) side += 1; if (keys.KeyA) side -= 1;
   if (keys.ArrowLeft) player.yaw += dt * 2.6; if (keys.ArrowRight) player.yaw -= dt * 2.6;
-  fwd -= touch.my;
+  fwd -= touch.my; side += touch.mx;
   if (touch.tx) player.yaw -= Math.sign(touch.tx) * Math.pow(Math.abs(touch.tx), 1.5) * 3.2 * dt;
+  if (touch.ty) player.pitch = Math.max(-1.2, Math.min(1.2, player.pitch - Math.sign(touch.ty) * Math.pow(Math.abs(touch.ty), 1.5) * 1.8 * dt));
   fartCd = Math.max(0, fartCd - dt); fartEl.style.opacity = fartCd > 0 ? .35 : 1;
   const len = Math.hypot(fwd, side);
   if (len > 1) { fwd /= len; side /= len; }
@@ -1469,7 +1525,7 @@ faceImg.onload = () => {
   requestAnimationFrame(loop);
 };
 faceImg.src = FACE_SRC;
-window.__dbg = { game, player, enemies, Enemy, scene, camera, CELL, TEX, selectWeapon, barrels, explodeBarrel };
+window.__dbg = { SFX, game, player, enemies, Enemy, scene, camera, CELL, TEX, selectWeapon, barrels, explodeBarrel };
 </script>
 </body>
 </html>
