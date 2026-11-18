@@ -42,15 +42,18 @@
   /* Touch */
   .touch { display:none; }
   body.is-touch .touch { display:block; }
-  body.is-touch #mini { width:110px; height:110px; }
-  #joy { position:fixed; left:24px; bottom:90px; width:120px; height:120px; border-radius:50%; border:2px solid rgba(255,255,255,.25); background:rgba(255,255,255,.06); pointer-events:none; }
-  #joyKnob { position:absolute; left:35px; top:35px; width:50px; height:50px; border-radius:50%; background:rgba(255,255,255,.3); }
+  body.is-touch #mini { width:96px; height:96px; left:50%; top:6px; transform:translateX(-50%); }
+  .joy { position:fixed; bottom:84px; width:120px; height:120px; border-radius:50%; border:2px solid rgba(255,255,255,.25); background:rgba(255,255,255,.06); pointer-events:none; }
+  #joyL { left:24px; } #joyR { right:24px; }
+  .joy .knob { position:absolute; left:35px; top:35px; width:50px; height:50px; border-radius:50%; background:rgba(255,255,255,.3); }
+  .joy .lbl { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:22px; color:rgba(255,255,255,.35); letter-spacing:0; }
   .tbtn { position:fixed; border-radius:50%; background:rgba(232,51,28,.45); border:2px solid rgba(255,255,255,.4); color:#fff;
     display:flex !important; align-items:center; justify-content:center; font-size:14px; letter-spacing:1px; }
   body:not(.is-touch) .tbtn { display:none !important; }
-  #fireBtn { right:24px; bottom:96px; width:92px; height:92px; }
-  #swapBtn { right:128px; bottom:110px; width:56px; height:56px; background:rgba(80,80,80,.5); }
-  #jumpBtn { right:40px; bottom:200px; width:56px; height:56px; background:rgba(80,80,80,.5); }
+  #fireBtn { right:30px; bottom:222px; width:92px; height:92px; }
+  #swapBtn { right:138px; bottom:240px; width:58px; height:58px; background:rgba(80,80,80,.5); }
+  #fartBtn { left:34px; bottom:222px; width:76px; height:76px; background:rgba(110,150,30,.55); font-size:13px; flex-direction:column; transition:opacity .2s; }
+  #fartBtn i { font-style:normal; font-size:26px; line-height:1; }
   @media (max-width:600px){ #bar .c{min-width:0; padding:2px 6px;} #bar b{font-size:22px;} #bar span{font-size:9px; letter-spacing:1px;} #msg{font-size:30px;} }
 </style>
 </head>
@@ -68,17 +71,18 @@
   <div class="c"><b id="kills">0</b><span>KILLS</span></div>
   <div class="c"><b id="score">0</b><span>PUNKTE</span></div>
 </div>
-<div id="joy" class="touch"><div id="joyKnob"></div></div>
+<div id="joyL" class="joy touch"><div class="lbl">▲<br>▼</div><div class="knob"></div></div>
+<div id="joyR" class="joy touch"><div class="lbl">◀ ▶</div><div class="knob"></div></div>
 <div id="fireBtn" class="tbtn">FEUER</div>
 <div id="swapBtn" class="tbtn">WAFFE</div>
-<div id="jumpBtn" class="tbtn">SPRUNG</div>
+<div id="fartBtn" class="tbtn"><i>💨</i>PUPS</div>
 
 <div id="overlay">
   <img id="ovFace" alt="">
   <h1 id="ovTitle">GRINSE-INVASION</h1>
   <p id="ovText">Sie grinsen. Sie kommen in Wellen. Sie haben alle dasselbe Gesicht.<br>Halte so lange durch wie möglich.</p>
   <button id="ovBtn" disabled>LÄDT…</button>
-  <div class="keys" id="ovKeys">WASD bewegen · Maus zielen · Klick schießen · Shift rennen · Leertaste springen · 1/2 oder Mausrad Waffe</div>
+  <div class="keys" id="ovKeys">WASD bewegen · Maus zielen · Klick schießen · Shift rennen · Leertaste springen · F pupsen · 1/2 oder Mausrad Waffe</div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -366,6 +370,18 @@ const SFX = {
   spawn() { sTone(80, 400, .5, 'sine', .15); },
   wave() { [0, .15, .3].forEach((d, i) => sTone(220 * (i + 2), 220 * (i + 2), .14, 'square', .1, d)); },
   swap() { sTone(300, 500, .06, 'square', .08); },
+  fart() {
+    const ac = audio(); if (!ac) return; const t = ac.currentTime, dur = rnd(.55, .95);
+    const o = ac.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(rnd(75, 115), t); o.frequency.exponentialRampToValueAtTime(rnd(35, 55), t + dur);
+    const lfo = ac.createOscillator(); lfo.frequency.value = rnd(16, 28);
+    const lg = ac.createGain(); lg.gain.value = 28; lfo.connect(lg); lg.connect(o.frequency);
+    const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 650; f.Q.value = 5;
+    const g = ac.createGain(); g.gain.setValueAtTime(.001, t); g.gain.exponentialRampToValueAtTime(.6, t + .04);
+    g.gain.setValueAtTime(.6, t + dur * .7); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+    o.connect(f); f.connect(g); g.connect(master); o.start(t); lfo.start(t); o.stop(t + dur); lfo.stop(t + dur);
+    sNoise(dur * .8, 380, .18);
+  },
 };
 
 // ---------------------------------------------------------------- Gesichtstexturen
@@ -410,15 +426,18 @@ const pMats = {
   dust: new THREE.MeshBasicMaterial({ color: 0x777066 }),
   fire: new THREE.MeshBasicMaterial({ color: 0xff6a00 }),
   green: new THREE.MeshBasicMaterial({ color: 0x40ff80 }),
+  gas: new THREE.MeshBasicMaterial({ color: 0x8aa82a, transparent: true, opacity: .32, depthWrite: false }),
 };
+const gasGeo = new THREE.SphereGeometry(.5, 8, 6);
 function burst(pos, n, kind, speed = 4, size = .08, life = .6) {
   for (let i = 0; i < n; i++) {
     let p;
     if (particles.length > 380) { p = particles.shift(); } else { p = { m: new THREE.Mesh(pGeo, pMats[kind]) }; scene.add(p.m); }
     p.m.material = pMats[kind === 'blood' && Math.random() < .4 ? 'blood2' : kind];
+    p.m.geometry = kind === 'gas' ? gasGeo : pGeo;
     p.m.position.copy(pos); const s = size * rnd(.6, 1.4); p.m.scale.set(s, s, s); p.m.visible = true;
     p.v = new THREE.Vector3(rnd(-1, 1), rnd(-.2, 1.2), rnd(-1, 1)).multiplyScalar(speed * rnd(.3, 1));
-    p.life = life * rnd(.6, 1.3); p.grav = kind === 'green' || kind === 'fire' ? -2 : 14; p.kind = kind;
+    p.life = life * rnd(.6, 1.3); p.grav = kind === 'green' || kind === 'fire' ? -2 : kind === 'gas' ? -.6 : 14; p.kind = kind;
     particles.push(p);
   }
 }
@@ -427,8 +446,9 @@ function updateParticles(dt) {
     const p = particles[i]; p.life -= dt;
     if (p.life <= 0) { scene.remove(p.m); particles.splice(i, 1); continue; }
     p.v.y -= p.grav * dt; p.m.position.addScaledVector(p.v, dt);
-    if (p.m.position.y < .02) { p.m.position.y = .02; p.v.set(0, 0, 0); if (p.kind.startsWith('blood')) p.m.scale.y = .01; }
+    if (p.m.position.y < .02 && p.kind !== 'gas') { p.m.position.y = .02; p.v.set(0, 0, 0); if (p.kind.startsWith('blood')) p.m.scale.y = .01; }
     if (p.kind === 'fire' || p.kind === 'green' || p.kind === 'spark') p.m.scale.multiplyScalar(1 - dt * 2.5);
+    else if (p.kind === 'gas') { p.m.scale.multiplyScalar(1 + dt * 1.2); p.v.multiplyScalar(1 - dt * 2.2); }
   }
 }
 
@@ -763,6 +783,7 @@ addEventListener('keydown', e => {
   if (e.code === 'Digit2') selectWeapon(1);
   if (e.code === 'KeyQ') selectWeapon(1 - game.weapon);
   if (e.code === 'Space') { jump(); e.preventDefault(); }
+  if (e.code === 'KeyF') fart();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('wheel', e => { if (game.state === 'play') selectWeapon(1 - game.weapon); }, { passive: true });
@@ -789,40 +810,71 @@ document.addEventListener('pointerlockchange', () => {
 });
 document.addEventListener('pointerlockerror', () => { dragLook = true; });
 function jump() { if (player.y <= 0.001) player.vy = 6.5; }
+let fartCd = 0;
+const FART_MSG = ['PFFFRT!', 'BRRRAP! 💨', 'UPS… 💨', 'GIFTGAS!', 'PÖÖÖRZ!'];
+function fart() {
+  if (game.state !== 'play' || fartCd > 0) return;
+  fartCd = 3;
+  SFX.fart();
+  const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw);
+  burst(new THREE.Vector3(player.x + sy * 1.1, .5 + player.y, player.z + cy * 1.1), 26, 'gas', 2.2, .5, 1.8);
+  burst(new THREE.Vector3(player.x - sy * 1.5, 1 + player.y, player.z - cy * 1.5), 10, 'gas', 1.2, .4, 1.4);
+  showMsg(FART_MSG[Math.floor(Math.random() * FART_MSG.length)], 900);
+  game.shake = Math.min(1, game.shake + .25);
+  for (const e of enemies) {
+    if (e.dead || e.spawnT > 0) continue;
+    const dx = e.x - player.x, dz = e.z - player.z, d = Math.hypot(dx, dz);
+    if (d < 6.5 && los(player.x, player.z, e.x, e.z)) {
+      e.damage(22, new THREE.Vector3(dx / (d || 1), 0, dz / (d || 1)));
+      if (!e.dead) { e.pain = .9; e.state = 'chase'; e.sm.map = TEX.face; }
+    }
+  }
+}
 
-// Touch-Steuerung
-const touch = { moveId: null, mx: 0, my: 0, ox: 0, oy: 0, lookId: null, lx: 0, ly: 0 };
-const joy = document.getElementById('joy'), knob = document.getElementById('joyKnob');
+// Touch-Steuerung: links vor/zurück (antippen = springen), rechts lenken
+const touch = { moveId: null, my: 0, ox: 0, oy: 0, moveT: 0, moveDist: 0, turnId: null, tx: 0, tox: 0, fireId: null };
+const joyL = document.getElementById('joyL'), knobL = joyL.querySelector('.knob');
+const joyR = document.getElementById('joyR'), knobR = joyR.querySelector('.knob');
+function placeJoy(el, x, y) { el.style.left = (x - 60) + 'px'; el.style.top = (y - 60) + 'px'; el.style.right = el.style.bottom = 'auto'; }
+function resetJoy(el, knob) { el.style.left = el.style.top = el.style.right = el.style.bottom = ''; knob.style.transform = ''; }
 function onTouchStart(e) {
   if (game.state !== 'play') return;
   for (const t of e.changedTouches) {
-    const el = t.target;
-    if (el.id === 'fireBtn') { game.firing = true; fire(); touch.fireId = t.identifier; continue; }
-    if (el.id === 'swapBtn') { selectWeapon(1 - game.weapon); continue; }
-    if (el.id === 'jumpBtn') { jump(); continue; }
-    if (t.clientX < innerWidth * .45 && touch.moveId === null) {
-      touch.moveId = t.identifier; touch.ox = t.clientX; touch.oy = t.clientY; touch.mx = touch.my = 0;
-      joy.style.left = (t.clientX - 60) + 'px'; joy.style.top = (t.clientY - 60) + 'px'; joy.style.bottom = 'auto';
-    } else if (touch.lookId === null) { touch.lookId = t.identifier; touch.lx = t.clientX; touch.ly = t.clientY; }
+    const id = t.target.id;
+    if (id === 'fireBtn') { game.firing = true; fire(); touch.fireId = t.identifier; continue; }
+    if (id === 'swapBtn') { selectWeapon(1 - game.weapon); continue; }
+    if (id === 'fartBtn' || (t.target.parentElement && t.target.parentElement.id === 'fartBtn')) { fart(); continue; }
+    if (t.clientX < innerWidth / 2) {
+      if (touch.moveId !== null) continue;
+      touch.moveId = t.identifier; touch.ox = t.clientX; touch.oy = t.clientY; touch.my = 0;
+      touch.moveT = performance.now(); touch.moveDist = 0; placeJoy(joyL, t.clientX, t.clientY);
+    } else if (touch.turnId === null) {
+      touch.turnId = t.identifier; touch.tox = t.clientX; touch.tx = 0; placeJoy(joyR, t.clientX, t.clientY);
+    }
   }
   e.preventDefault();
 }
 function onTouchMove(e) {
+  const m = 50;
   for (const t of e.changedTouches) {
     if (t.identifier === touch.moveId) {
-      let dx = t.clientX - touch.ox, dy = t.clientY - touch.oy; const l = Math.hypot(dx, dy), m = 50;
-      if (l > m) { dx *= m / l; dy *= m / l; }
-      touch.mx = dx / m; touch.my = dy / m; knob.style.transform = `translate(${dx}px,${dy}px)`;
-    } else if (t.identifier === touch.lookId) {
-      look(t.clientX - touch.lx, t.clientY - touch.ly, .0055); touch.lx = t.clientX; touch.ly = t.clientY;
+      const dy = Math.max(-m, Math.min(m, t.clientY - touch.oy));
+      touch.moveDist = Math.max(touch.moveDist, Math.hypot(t.clientX - touch.ox, t.clientY - touch.oy));
+      touch.my = Math.abs(dy) < 6 ? 0 : dy / m; knobL.style.transform = `translateY(${dy}px)`;
+    } else if (t.identifier === touch.turnId) {
+      const dx = Math.max(-m, Math.min(m, t.clientX - touch.tox));
+      touch.tx = Math.abs(dx) < 5 ? 0 : dx / m; knobR.style.transform = `translateX(${dx}px)`;
     }
   }
   e.preventDefault();
 }
 function onTouchEnd(e) {
   for (const t of e.changedTouches) {
-    if (t.identifier === touch.moveId) { touch.moveId = null; touch.mx = touch.my = 0; knob.style.transform = ''; }
-    if (t.identifier === touch.lookId) touch.lookId = null;
+    if (t.identifier === touch.moveId) {
+      if (performance.now() - touch.moveT < 260 && touch.moveDist < 14) jump(); // kurzes Antippen = Sprung
+      touch.moveId = null; touch.my = 0; resetJoy(joyL, knobL);
+    }
+    if (t.identifier === touch.turnId) { touch.turnId = null; touch.tx = 0; resetJoy(joyR, knobR); }
     if (t.identifier === touch.fireId) { game.firing = false; touch.fireId = null; }
   }
 }
@@ -832,7 +884,7 @@ addEventListener('touchend', onTouchEnd); addEventListener('touchcancel', onTouc
 
 // ---------------------------------------------------------------- HUD
 const $ = id => document.getElementById(id);
-const dmgEl = $('dmg'), hitEl = $('hitmark'), msgEl = $('msg'), mini = $('mini').getContext('2d');
+const fartEl = $('fartBtn'), dmgEl = $('dmg'), hitEl = $('hitmark'), msgEl = $('msg'), mini = $('mini').getContext('2d');
 let msgTimer = 0;
 function showMsg(t, ms) { msgEl.textContent = t; msgEl.style.opacity = 1; clearTimeout(msgTimer); msgTimer = setTimeout(() => msgEl.style.opacity = 0, ms); }
 function updateHud() {
@@ -858,7 +910,7 @@ function drawMinimap() {
 
 // ---------------------------------------------------------------- Overlay / Zustände
 const ov = $('overlay'), ovBtn = $('ovBtn'), ovTitle = $('ovTitle'), ovText = $('ovText');
-if (isTouch) $('ovKeys').textContent = 'Links ziehen: laufen · Rechts ziehen: zielen · Buttons: Feuer, Waffe, Sprung';
+if (isTouch) $('ovKeys').textContent = 'Links hoch/runter: laufen · Links antippen: springen · Rechts links/rechts: lenken · 💨 Pups-Knopf';
 function startGame() {
   audio();
   if (game.state === 'menu' || game.state === 'dead') resetGame();
@@ -891,7 +943,9 @@ function step(dt) {
   if (keys.KeyW || keys.ArrowUp) fwd += 1; if (keys.KeyS || keys.ArrowDown) fwd -= 1;
   if (keys.KeyD) side += 1; if (keys.KeyA) side -= 1;
   if (keys.ArrowLeft) player.yaw += dt * 2.6; if (keys.ArrowRight) player.yaw -= dt * 2.6;
-  fwd -= touch.my; side += touch.mx;
+  fwd -= touch.my;
+  if (touch.tx) player.yaw -= Math.sign(touch.tx) * Math.pow(Math.abs(touch.tx), 1.5) * 3.2 * dt;
+  fartCd = Math.max(0, fartCd - dt); fartEl.style.opacity = fartCd > 0 ? .35 : 1;
   const len = Math.hypot(fwd, side);
   if (len > 1) { fwd /= len; side /= len; }
   const speed = (keys.ShiftLeft || keys.ShiftRight || (isTouch && len > .9)) ? 11 : 7.5;
