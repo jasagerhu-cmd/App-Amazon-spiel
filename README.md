@@ -27,3 +27,14 @@ Die Vorschau auf claude.ai kann diesen Modus nicht nutzen (die Plattform sperrt 
 ## Grinse-Invasion (doom.html)
 
 Schneller 3D-Shooter im Retro-Stil (Three.js). `doom.html` im Browser öffnen – Desktop (WASD + Maus) und Touch werden unterstützt.
+
+## Grimassen-Hüpfer (huepfer.html)
+
+Jump-and-Run in 3D mit Seitenansicht (Three.js). Die Heldin ist ein Foto, das im Startbildschirm hochgeladen und zugeschnitten wird (Augen auf die Punkte, Mund auf den Strich). Aus dem Foto entstehen zwölf Grimassen (Glubschaugen, Riesennase, Fischmund, Strudelkopf …), die beim Springen, Stehen, Zertreten und auf Grimassen-Feldern wechseln.
+
+- Gegner: Grummel (draufhüpfen), Panzerkäfer (draufhüpfen, dann den Panzer wegkicken, er räumt andere Gegner ab), Flatterlinge
+- Blöcke: Ziegel (groß zerschlagen), Herz-Blöcke mit Goldherzen, Erdbeere (macht groß) und Stern (unverwundbar)
+- Ereignisfelder: Trampolin, Turbo-Feld, Mondhüpf-Zone mit wenig Schwerkraft, Grimassen-Feld, Checkpoint, Lava, fahrende Plattformen
+- Steuerung: Pfeiltasten oder WASD, Leertaste hüpfen (länger halten = höher), Shift rennen, G Grimasse, P Pause, M Musik. Am Handy Touch-Knöpfe, dort wird automatisch gerannt.
+
+Das Foto wird nur im Browser gespeichert (localStorage), nie hochgeladen. Dateien mit `-privat.html` im Namen sind per `.gitignore` ausgeschlossen, dort gehören Versionen mit fest eingebauten Familienfotos hin.
