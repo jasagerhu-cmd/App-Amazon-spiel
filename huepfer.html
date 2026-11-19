@@ -347,7 +347,7 @@ const MAT = {
 // =====================================================================
 const FS = 256, FR = 124;
 const faceTex = {};
-const faceMat = new THREE.MeshBasicMaterial({ transparent: true });
+const faceMat = new THREE.MeshStandardMaterial({ roughness: .75, emissive: 0xffffff, emissiveIntensity: .28 });
 let faceSrc = null; // Canvas 256x256 mit dem zugeschnittenen Gesicht
 
 const bulge = (cx, cy, rad, p) => (u, v) => {
@@ -421,17 +421,28 @@ function warpImage(src, fn) {
   return c;
 }
 
+function sampleColor(cx, cy, r) {
+  const d = faceSrc.getContext('2d').getImageData(cx - r, cy - r, r * 2, r * 2).data;
+  let R = 0, G = 0, B = 0, n = 0;
+  for (let i = 0; i < d.length; i += 4) { if (d[i + 3] < 200) continue; R += d[i]; G += d[i + 1]; B += d[i + 2]; n++; }
+  if (!n) return null;
+  return `rgb(${Math.round(R / n)},${Math.round(G / n)},${Math.round(B / n)})`;
+}
+let hairCss = '#c99b62';
 function buildFaces() {
   if (!faceSrc) { faceSrc = document.createElement('canvas'); faceSrc.width = faceSrc.height = FS; drawDefault(faceSrc.getContext('2d')); }
   FG = photo ? TEMPLATE_GEO : (embeddedImg && EMBEDDED_GEO) || TEMPLATE_GEO;
   GRIMS = makeGrims(FG);
+  // Haar- und Hautfarbe aus dem Foto ablesen
+  hairCss = FG.hair || sampleColor(128, 128 - Math.round(.9 * FR), 8) || hairCss;
+  const skin = sampleColor(128 - Math.round(.45 * FR), 128 + Math.round(.12 * FR), 7);
+  if (typeof hero !== 'undefined') { hero.mHair.color.set(hairCss).multiplyScalar(1.15); if (skin) hero.mSkin.color.set(skin); }
   for (const k in faceTex) faceTex[k].dispose();
   for (const [k, gdef] of Object.entries(GRIMS)) {
     const warped = gdef.fn ? warpImage(faceSrc, gdef.fn) : faceSrc;
     const c = document.createElement('canvas'); c.width = c.height = FS;
     const g = c.getContext('2d');
-    g.save(); g.beginPath(); g.arc(128, 128, FR, 0, 7); g.clip();
-    g.fillStyle = '#fff'; g.fillRect(0, 0, FS, FS);
+    g.fillStyle = hairCss; g.fillRect(0, 0, FS, FS);
     g.drawImage(warped, 0, 0);
     if (gdef.tongue && !FG.noTongue) {
       g.fillStyle = '#ff5c8a'; g.strokeStyle = '#a3132c'; g.lineWidth = 4;
@@ -439,13 +450,19 @@ function buildFaces() {
       g.beginPath(); g.moveTo(108, my); g.lineTo(108, my + 26); g.arc(128, my + 26, 20, Math.PI, 0, true); g.lineTo(148, my); g.closePath(); g.fill(); g.stroke();
       g.beginPath(); g.moveTo(128, my + 6); g.lineTo(128, my + 34); g.stroke();
     }
-    g.restore();
-    g.strokeStyle = '#fff'; g.lineWidth = 7; g.beginPath(); g.arc(128, 128, FR, 0, 7); g.stroke();
+    // Rand weich in Haarfarbe auslaufen lassen (Kopfseiten)
+    const rg = g.createRadialGradient(128, 128, FR * .8, 128, 128, 128);
+    rg.addColorStop(0, 'rgba(0,0,0,0)'); rg.addColorStop(1, hairCss);
+    g.fillStyle = rg; g.fillRect(0, 0, FS, FS);
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
     faceTex[k] = t;
-    if (k === 'normal') $('faceIcon').src = c.toDataURL();
+    if (k === 'normal') {
+      const ic = document.createElement('canvas'); ic.width = ic.height = 96; const ig = ic.getContext('2d');
+      ig.beginPath(); ig.arc(48, 48, 48, 0, 7); ig.clip(); ig.drawImage(faceSrc, 4, 4, 248, 248, 0, 0, 96, 96);
+      $('faceIcon').src = ic.toDataURL();
+    }
   }
-  faceMat.map = faceTex.normal; faceMat.needsUpdate = true;
+  faceMat.map = faceMat.emissiveMap = faceTex.normal; faceMat.needsUpdate = true;
 }
 
 const grim = { name: 'normal', t: 0, idle: 3, cycle: 0 };
@@ -460,46 +477,78 @@ function setGrimace(name, dur, label = true) {
     }
   }
   grim.name = name; grim.t = dur;
-  faceMat.map = faceTex[name];
+  faceMat.map = faceMat.emissiveMap = faceTex[name];
 }
 const randomGrim = () => JUMP_GRIMS[(Math.random() * JUMP_GRIMS.length) | 0];
 
 // =====================================================================
 // Spielfigur
 // =====================================================================
+T.hair = tex(64, 128, (g) => {
+  g.fillStyle = '#e8e8e8'; g.fillRect(0, 0, 64, 128);
+  for (let i = 0; i < 70; i++) { g.strokeStyle = `rgba(${srand() < .5 ? '255,255,255' : '90,70,50'},${.15 + srand() * .3})`; g.lineWidth = 1 + srand() * 2; const x = srand() * 64; g.beginPath(); g.moveTo(x, 0); g.bezierCurveTo(x + 4, 40, x - 4, 80, x + 2, 128); g.stroke(); }
+}, true);
+T.shirt = tex(256, 128, (g) => {
+  g.fillStyle = '#f6f0dc'; g.fillRect(0, 0, 256, 128);
+  const cols = ['#f7b8c8', '#fbe28a', '#a9e3cf', '#c6b5e8'];
+  g.lineCap = 'butt';
+  cols.forEach((c, i) => { g.strokeStyle = c; g.lineWidth = 7; g.beginPath(); g.arc(128, 78, 30 - i * 7, Math.PI, 0); g.stroke(); });
+  g.fillStyle = 'rgba(255,255,255,.7)'; for (let i = 0; i < 14; i++) { g.beginPath(); g.arc(98 + srand() * 60, 48 + srand() * 26, 1.2, 0, 7); g.fill(); }
+}, true);
+T.shirt.offset.x = .5;
+
 function buildHero() {
   const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
-  const mRed = std({ color: 0xff1430, roughness: .4 }), mSkin = std({ color: 0xffcfae, roughness: .7 });
-  const mShoe = std({ color: 0x8a2be2, roughness: .35 }), mYel = std({ color: 0xffd400, roughness: .4 });
-  const mWhite = std({ color: 0xffffff }), mPink = std({ color: 0xff2fa0, roughness: .35 });
-  const dress = new THREE.Mesh(new THREE.CylinderGeometry(.22, .52, .7, 28), mRed); dress.position.y = .65; body.add(dress);
-  for (let i = 0; i < 10; i++) { // Punkte aufs Kleid
-    const a = i / 10 * Math.PI * 2, yy = .45 + (i % 2) * .25, rr = .5 - (yy - .3) * .45;
-    const d = new THREE.Mesh(new THREE.SphereGeometry(.045, 8, 6), mWhite); d.position.set(Math.cos(a) * rr, yy, Math.sin(a) * rr); body.add(d);
+  const mSkin = std({ color: 0xf0c4a4, roughness: .7 });
+  const mShirt = std({ map: T.shirt, roughness: .85 });
+  const mSleeve = std({ color: 0xf6f0dc, roughness: .85 });
+  const mLeg = std({ color: 0x3b3a46, roughness: .8 });
+  const mShoe = std({ color: 0xff1430, roughness: .35 });
+  const mSole = std({ color: 0xffffff, roughness: .6 });
+  const mHair = std({ map: T.hair, color: 0xd9b27a, roughness: .5, side: THREE.DoubleSide });
+  const limb = (r, len, m) => { const g = new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 5, 14), m); g.position.y = -len / 2; return g; };
+  const J = {};
+  const hips = new THREE.Group(); hips.position.y = .95; body.add(hips); J.hips = hips;
+  for (const [s, n] of [[-1, 'L'], [1, 'R']]) {
+    const thigh = new THREE.Group(); thigh.position.set(s * .12, 0, 0); hips.add(thigh);
+    thigh.add(limb(.1, .32, mLeg));
+    const knee = new THREE.Group(); knee.position.y = -.42; thigh.add(knee);
+    knee.add(limb(.085, .3, mLeg));
+    const ankle = new THREE.Group(); ankle.position.y = -.38; knee.add(ankle);
+    const shoe = new THREE.Mesh(new RoundedBoxGeometry(.18, .12, .3, 2, .05), mShoe); shoe.position.set(0, -.07, .05); ankle.add(shoe);
+    const sole = new THREE.Mesh(new RoundedBoxGeometry(.19, .045, .32, 2, .02), mSole); sole.position.set(0, -.13, .05); ankle.add(sole);
+    J['thigh' + n] = thigh; J['knee' + n] = knee; J['ankle' + n] = ankle;
   }
-  const belt = new THREE.Mesh(new THREE.TorusGeometry(.23, .05, 8, 24), mYel); belt.rotation.x = Math.PI / 2; belt.position.y = .98; body.add(belt);
-  const torso = new THREE.Mesh(new THREE.CylinderGeometry(.18, .22, .26, 16), mRed); torso.position.y = 1.1; body.add(torso);
-  const legs = [], arms = [];
+  const torso = new THREE.Group(); hips.add(torso); J.torso = torso;
+  const prof = [[0, -.1], [.25, -.1], [.27, -.04], [.25, .15], [.27, .32], [.28, .42], [.2, .52], [.08, .56], [0, .56]].map(([x, y]) => new THREE.Vector2(x, y));
+  const shirt = new THREE.Mesh(new THREE.LatheGeometry(prof, 28), mShirt); shirt.scale.z = .74; torso.add(shirt);
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(.075, .085, .16, 12), mSkin); neck.position.y = .6; torso.add(neck);
+  for (const [s, n] of [[-1, 'L'], [1, 'R']]) {
+    const sh = new THREE.Group(); sh.position.set(s * .27, .44, 0); torso.add(sh);
+    const sleeve = new THREE.Mesh(new THREE.SphereGeometry(.11, 14, 10), mSleeve); sleeve.scale.set(1, 1.35, 1); sleeve.position.y = -.07; sh.add(sleeve);
+    sh.add(limb(.058, .2, mSkin));
+    const elbow = new THREE.Group(); elbow.position.y = -.27; sh.add(elbow);
+    elbow.add(limb(.052, .19, mSkin));
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(.07, 12, 10), mSkin); hand.position.y = -.27; hand.scale.set(.9, 1.1, .7); elbow.add(hand);
+    J['shoulder' + n] = sh; J['elbow' + n] = elbow;
+  }
+  // Kopf: Kugel, Foto per Frontalprojektion
+  const neckTop = new THREE.Group(); neckTop.position.y = .66; torso.add(neckTop); J.head = neckTop;
+  const R = .42;
+  const hg = new THREE.SphereGeometry(R, 48, 32);
+  { const p = hg.attributes.position, uv = hg.attributes.uv; for (let i = 0; i < p.count; i++) uv.setXY(i, .5 + p.getX(i) / R * .5, .5 + p.getY(i) / R * .5); }
+  const head = new THREE.Mesh(hg, faceMat); head.position.y = .4; head.scale.set(1, 1.07, .95); neckTop.add(head);
+  const hairRoot = new THREE.Group(); hairRoot.position.y = .4; neckTop.add(hairRoot);
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(R * 1.05, 40, 20, 0, Math.PI * 2, 0, Math.PI * .42), mHair); cap.rotation.x = -.62; cap.scale.set(1.02, 1.07, 1); hairRoot.add(cap);
+  const back = new THREE.Mesh(new THREE.SphereGeometry(R * 1.06, 36, 24, Math.PI, Math.PI, 0, Math.PI * .72), mHair); back.scale.set(1.02, 1.07, 1); hairRoot.add(back);
+  const sway = new THREE.Group(); hairRoot.add(sway); J.hair = sway;
+  const longHair = new THREE.Mesh(new THREE.CylinderGeometry(R * 1.05, R * .9, 1, 28, 1, true, Math.PI / 2 + .1, Math.PI - .2), mHair);
+  longHair.position.y = -.5; sway.add(longHair);
   for (const s of [-1, 1]) {
-    const leg = new THREE.Group(); leg.position.set(s * .15, .38, 0);
-    const lm = new THREE.Mesh(new THREE.CylinderGeometry(.07, .065, .3, 10), mWhite); lm.position.y = -.15; leg.add(lm);
-    const sh = new THREE.Mesh(new THREE.BoxGeometry(.18, .11, .3), mShoe); sh.position.set(0, -.32, .06); leg.add(sh);
-    body.add(leg); legs.push(leg);
-    const arm = new THREE.Group(); arm.position.set(s * .22, 1.16, 0);
-    const am = new THREE.Mesh(new THREE.CylinderGeometry(.055, .05, .38, 10), mSkin); am.position.y = -.19; arm.add(am);
-    const hand = new THREE.Mesh(new THREE.SphereGeometry(.075, 10, 8), mSkin); hand.position.y = -.4; arm.add(hand);
-    arm.rotation.z = s * .4; body.add(arm); arms.push(arm);
+    const st = new THREE.Mesh(new THREE.CapsuleGeometry(.09, .62, 4, 10), mHair); st.position.set(s * .4, -.42, .06); st.scale.set(1, 1, .45); st.rotation.z = s * .08; sway.add(st);
   }
-  const head = new THREE.Group(); head.position.set(0, 1.85, .25); root.add(head);
-  const face = new THREE.Mesh(new THREE.CircleGeometry(.75, 56), faceMat); face.position.z = .07; head.add(face);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(.75, .07, 12, 56), mRed); ring.position.z = .07; head.add(ring);
-  const back = new THREE.Mesh(new THREE.SphereGeometry(.75, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2), mRed);
-  back.rotation.x = -Math.PI / 2; back.scale.set(1, .45, 1); head.add(back);
-  const bow = new THREE.Group(); bow.position.set(.48, .62, .12); bow.rotation.z = -.5; head.add(bow);
-  for (const s of [-1, 1]) { const c = new THREE.Mesh(new THREE.ConeGeometry(.16, .3, 12), mPink); c.rotation.z = s * Math.PI / 2; c.position.x = s * .15; bow.add(c); }
-  bow.add(new THREE.Mesh(new THREE.SphereGeometry(.08, 10, 8), mYel));
-  root.traverse(o => { if (o.isMesh && o !== face) o.castShadow = true; });
-  return { root, body, head, legs, arms, mats: [mRed, mPink, mShoe] };
+  root.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  return { root, body, J, mSkin, mHair, mats: [mShirt, mLeg, mShoe], hairV: 0 };
 }
 const hero = buildHero();
 scene.add(hero.root);
@@ -536,7 +585,7 @@ function levelLayout() {
   E('k', 47, 2); E('g', 51, 2); E('g', 53, 2);
   // Lavasee mit fahrender Plattform
   R(57, 63, 0, 'L'); R(57, 63, 1, 'L');
-  E('plat', 59, 3.6, { w: 3, ax: 58.6, bx: 62.4, speed: 2.2 });
+  E('plat', 59, 3.6, { w: 3, ax: 58.6, bx: 62.4, speed: 1.5 });
   hearts(58, 62, 6);
   G(64, 79);
   E('tramp', 67.5, 2); set(67, 11, 'S'); hearts(66, 69, 8); hearts(70, 73, 3);
@@ -553,7 +602,7 @@ function levelLayout() {
   hearts(107, 113, 9); hearts(109, 111, 13);
   G(115, 140);
   R(118, 120, 5, 'X'); R(123, 125, 8, 'X'); hearts(123, 125, 9); E('f', 121.5, 6);
-  E('plat', 127.5, 3, { w: 2, ay: 3, by: 7.2, vertical: true, speed: 1.6 });
+  E('plat', 127.5, 3, { w: 2, ay: 3, by: 7.2, vertical: true, speed: 1.2 });
   R(129, 134, 10, 'B'); set(131, 10, 'M'); set(133, 10, '?'); hearts(129, 134, 12);
   E('pad', 117.5, 2);
   E('k', 130, 2); E('g', 134, 2); E('g', 135.2, 2); E('g', 136.4, 2); E('g', 137.6, 2);
@@ -752,7 +801,7 @@ function spawn(d) {
     heartsList.push({ x: d.x, y: d.y, mesh: m, taken: false });
   } else if (d.t === 'g' || d.t === 'k' || d.t === 'f') {
     const e = { type: d.t, x: d.x, y: d.y, vx: 0, vy: 0, w: d.t === 'f' ? .7 : .8, h: d.t === 'k' ? .8 : .78, dir: -1, active: false, alive: true, state: 'walk', t: Math.random() * 6, mesh: makeEnemyMesh(d.t), baseY: d.y, homeX: d.x };
-    e.speed = d.t === 'g' ? 2 : d.t === 'k' ? 1.6 : 1.2;
+    e.speed = d.t === 'g' ? 1.3 : d.t === 'k' ? 1.05 : .85;
     levelGroup.add(e.mesh); enemies.push(e);
   } else if (d.t === 'plat') {
     const m = new THREE.Mesh(new RoundedBoxGeometry(d.w, .4, 1.6, 2, .1), MAT.platform); m.castShadow = m.receiveShadow = true; levelGroup.add(m);
@@ -836,7 +885,7 @@ const clouds = [];
 // Spielzustand
 // =====================================================================
 const state = { mode: 'start', score: 0, hearts: 0, lives: 5, time: 0, grimaces: 0, checkpoint: false, combo: 0 };
-const P = { x: 3, y: 2, vx: 0, vy: 0, w: .7, h: 1.3, big: false, onGround: false, face: 1, star: 0, inv: 0, dead: false, deadT: 0, coyote: 0, jumpBuf: 0, turbo: 0, plat: null, win: 0, winT: 0, squash: 0, phase: 0, scale: .6, gone: false };
+const P = { x: 3, y: 2, vx: 0, vy: 0, w: .7, h: 1.3, big: false, onGround: false, face: 1, star: 0, inv: 0, dead: false, deadT: 0, coyote: 0, jumpBuf: 0, turbo: 0, plat: null, win: 0, winT: 0, squash: 0, phase: 0, scale: .7, gone: false };
 const input = { left: false, right: false, jump: false, run: false, jumpPressed: false };
 let camX = 10, camY = 7;
 
@@ -949,7 +998,7 @@ function stompEnemy(e) {
   addScore(pts, e.x, e.y + 1);
   SFX.stomp(); setGrimace('breit', .45, false);
   for (let i = 0; i < 6; i++) spawnParticle(GEO.spark, confettiMats[5], e.x, e.y + .2, rand(-3, 3), rand(1, 4), .4, 0, 5);
-  P.vy = input.jump ? 15 : 10; P.onGround = false;
+  P.vy = input.jump ? 12 : 8; P.onGround = false;
 }
 
 function hurtPlayer() {
@@ -985,28 +1034,29 @@ function updatePlayer(dt) {
 
   const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
   const touchRun = document.body.classList.contains('touch');
-  const maxS = P.turbo > 0 ? 17 : ((input.run || touchRun) ? 9.5 : 6.5);
-  if (P.turbo > 0) { P.turbo -= dt; P.vx = Math.max(P.vx, 17); }
+  const maxS = P.turbo > 0 ? 10.5 : (input.run ? 6.2 : touchRun ? 4.8 : 4.2);
+  if (P.turbo > 0) { P.turbo -= dt; P.vx = Math.max(P.vx, 10.5); }
   else if (dir) {
-    const acc = P.onGround ? 34 : 22;
-    if (Math.sign(P.vx) === -dir && P.onGround) P.vx += dir * 50 * dt; else P.vx += dir * acc * dt;
+    const acc = P.onGround ? 18 : 12;
+    if (Math.sign(P.vx) === -dir && P.onGround) P.vx += dir * 30 * dt;
+    else if (dir * P.vx < maxS) P.vx = dir * Math.min(maxS, dir * P.vx + acc * dt); // nie über das Tempolimit beschleunigen
     P.face = dir;
   } else {
-    const f = (P.onGround ? 28 : 5) * dt;
+    const f = (P.onGround ? 18 : 4) * dt;
     P.vx = Math.abs(P.vx) <= f ? 0 : P.vx - Math.sign(P.vx) * f;
   }
-  if (Math.abs(P.vx) > maxS) P.vx -= Math.sign(P.vx) * Math.min(Math.abs(P.vx) - maxS, (P.onGround ? 30 : 8) * dt);
+  if (Math.abs(P.vx) > maxS) P.vx -= Math.sign(P.vx) * Math.min(Math.abs(P.vx) - maxS, (P.onGround ? 18 : 6) * dt);
 
   if (input.jumpPressed) { P.jumpBuf = .13; input.jumpPressed = false; }
   P.jumpBuf -= dt; P.coyote = P.onGround ? .1 : P.coyote - dt;
   if (P.jumpBuf > 0 && P.coyote > 0) {
-    P.vy = 14 + Math.abs(P.vx) * .15; P.jumpBuf = 0; P.coyote = 0; P.onGround = false; P.plat = null;
+    P.vy = 11.5 + Math.abs(P.vx) * .15; P.jumpBuf = 0; P.coyote = 0; P.onGround = false; P.plat = null;
     SFX.jump(); setGrimace(randomGrim(), .75); P.squash = -.25;
   }
   const low = inLowGrav(P);
-  let g = (P.vy > 0 && input.jump) ? 20 : 42;
+  let g = (P.vy > 0 && input.jump) ? 14 : 30;
   if (low) g *= .3;
-  P.vy -= g * dt; P.vy = Math.max(P.vy, low ? -6 : -22);
+  P.vy -= g * dt; P.vy = Math.max(P.vy, low ? -4.5 : -16);
 
   if (P.plat) {
     const pl = P.plat;
@@ -1022,7 +1072,7 @@ function updatePlayer(dt) {
   for (const pl of platforms) {
     if (P.vy <= 0 && prevBottom >= pl.prevTop - .05 && P.y <= pl.top + .001 && Math.abs(P.x - pl.x) < (P.w + pl.w) / 2 - .05) {
       if (pl.bounce) {
-        P.y = pl.top; P.vy = input.jump ? 21 : 16; pl.squish = .3; SFX.tramp(); setGrimace('glubsch', .9); P.squash = -.35; P.onGround = false;
+        P.y = pl.top; P.vy = input.jump ? 17 : 13; pl.squish = .3; SFX.tramp(); setGrimace('glubsch', .9); P.squash = -.35; P.onGround = false;
       } else { P.y = pl.top; P.vy = 0; P.onGround = true; P.plat = pl; }
     }
   }
@@ -1056,16 +1106,16 @@ function updateEnemies(dt) {
     if (e.squashT !== undefined) { e.squashT -= dt; if (e.squashT <= 0) e.remove = true; continue; }
     e.t += dt;
     if (e.type === 'f') {
-      e.vx = e.vx || -e.speed; e.x += e.vx * dt; e.y = e.baseY + Math.sin(e.t * 2.2) * 1.4;
+      e.vx = e.vx || -e.speed; e.x += e.vx * dt; e.y = e.baseY + Math.sin(e.t * 1.6) * 1.4;
       if (e.x < e.homeX - 2.5) e.vx = e.speed; if (e.x > e.homeX + 2.5) e.vx = -e.speed;
       e.dir = Math.sign(e.vx);
     } else {
       if (e.state === 'shell') { e.shellT += dt; if (e.shellT > 7) { e.state = 'walk'; e.h = .8; e.vx = e.speed * (P.x > e.x ? 1 : -1); } }
       if (e.state === 'walk' && !e.vx) e.vx = -e.speed;
       e.kick = Math.max(0, (e.kick || 0) - dt);
-      e.vy -= 40 * dt; e.vy = Math.max(e.vy, -20);
+      e.vy -= 30 * dt; e.vy = Math.max(e.vy, -16);
       const res = moveBody(e, dt);
-      if (res.wall) { const sp = e.state === 'slide' ? 12 : e.speed; e.vx = -res.wall * sp; if (e.state === 'slide' && Math.abs(e.x - camX) < 14) SFX.bump(); }
+      if (res.wall) { const sp = e.state === 'slide' ? 8 : e.speed; e.vx = -res.wall * sp; if (e.state === 'slide' && Math.abs(e.x - camX) < 14) SFX.bump(); }
       if (e.vx) e.dir = Math.sign(e.vx);
       if (e.y < -4) e.remove = true;
       if (inLava(e)) { e.remove = true; SFX.sizzle(); for (let i = 0; i < 6; i++) spawnParticle(GEO.spark, confettiMats[1], e.x, 1.5, rand(-2, 2), rand(3, 6), .6); }
@@ -1106,8 +1156,8 @@ function updateEnemies(dt) {
         else hurtPlayer();
       } else if (e.state === 'shell') {
         const d = Math.sign(e.x - P.x) || P.face;
-        e.state = 'slide'; e.vx = 12 * d; e.kick = .3; SFX.kick(); addScore(200, e.x, e.y + 1); setGrimace('zunge', .6);
-        if (fromAbove) { P.vy = 10; }
+        e.state = 'slide'; e.vx = 8 * d; e.kick = .3; SFX.kick(); addScore(200, e.x, e.y + 1); setGrimace('zunge', .6);
+        if (fromAbove) { P.vy = 8; }
         else e.x = P.x + d * ((P.w + e.w) / 2 + .02);
       } else if (e.state === 'slide') {
         if (fromAbove) { e.state = 'shell'; e.vx = 0; e.shellT = 0; e.kick = .25; stompEnemy(e); }
@@ -1126,12 +1176,12 @@ function updateItems(dt) {
     }
     if (it.emerging) {
       it.y += dt * 1.6;
-      if (it.y >= it.ty) { it.y = it.ty; it.emerging = false; it.vx = 3; if (it.type === 'star') it.vy = 9; }
+      if (it.y >= it.ty) { it.y = it.ty; it.emerging = false; it.vx = 2.2; if (it.type === 'star') it.vy = 7; }
     } else {
-      it.vy -= (it.type === 'star' ? 26 : 40) * dt;
+      it.vy -= (it.type === 'star' ? 20 : 30) * dt;
       const res = moveBody(it, dt);
-      if (res.wall) it.vx = -res.wall * (it.type === 'star' ? 4 : 3);
-      if (it.type === 'star') { if (it.onGround) it.vy = 11; it.vx = it.vx || 4; }
+      if (res.wall) it.vx = -res.wall * (it.type === 'star' ? 3 : 2.2);
+      if (it.type === 'star') { if (it.onGround) it.vy = 9; it.vx = it.vx || 3; }
       if (it.y < -4) { it.done = true; levelGroup.remove(it.mesh); continue; }
     }
     it.mesh.position.set(it.x, it.y + .35, 0);
@@ -1162,11 +1212,11 @@ function updateWin(dt) {
   P.winT += dt;
   const fl = flag.userData.flag;
   if (P.win === 1) {
-    P.y = Math.max(2, P.y - 8 * dt);
-    fl.position.y = Math.max(2.3, fl.position.y - 8 * dt);
-    if (P.y <= 2 && P.winT > .9) { P.win = 2; P.face = 1; }
+    P.y = Math.max(2, P.y - 6 * dt);
+    fl.position.y = Math.max(2.3, fl.position.y - 6 * dt);
+    if (P.y <= 2 && P.winT > 1.2) { P.win = 2; P.face = 1; }
   } else if (P.win === 2) {
-    P.vx = 4; P.x += P.vx * dt; P.onGround = true;
+    P.vx = 3; P.x += P.vx * dt; P.onGround = true;
     if (P.x >= DOOR_X) { P.win = 3; P.winT = 0; P.gone = true; P.vx = 0; hero.root.visible = false; }
   } else if (P.win === 3) {
     if (Math.random() < dt * 4) { const x = DOOR_X + rand(-7, 7), y = rand(9, 14); confetti(x, y, 36, 8); SFX.pop(); }
@@ -1184,33 +1234,8 @@ function afterDeath() {
 // Visuals
 // =====================================================================
 function updateVisuals(dt, t) {
-  // Spielerin
-  const s = P.big ? .86 : .6;
-  P.scale += (s - P.scale) * Math.min(1, dt * 10);
-  hero.root.position.set(P.x, P.y, 0);
-  hero.root.scale.setScalar(P.scale);
-  const targetRot = P.win === 3 ? 0 : (P.dead ? 0 : P.face * 1.15);
-  hero.body.rotation.y += (targetRot - hero.body.rotation.y) * Math.min(1, dt * 14);
+  animateHero(dt, t);
   const speed = Math.abs(P.vx);
-  if (P.onGround || P.win === 2) {
-    P.phase += speed * dt * 2.4;
-    const a = Math.sin(P.phase) * Math.min(1, speed / 4) * .9;
-    hero.legs[0].rotation.x = a; hero.legs[1].rotation.x = -a;
-    hero.arms[0].rotation.x = -a; hero.arms[1].rotation.x = a;
-  } else {
-    hero.legs[0].rotation.x = .7; hero.legs[1].rotation.x = -.4;
-    hero.arms[0].rotation.x = -2.4; hero.arms[1].rotation.x = -2.6;
-  }
-  if (P.dead) { hero.arms[0].rotation.x = hero.arms[1].rotation.x = -2.8; hero.root.rotation.z = Math.sin(P.deadT * 12) * .2; } else hero.root.rotation.z = 0;
-  P.squash *= Math.pow(.0005, dt);
-  const stretch = clamp(P.vy * .012, -.12, .18) - P.squash;
-  hero.head.scale.set(1 - stretch * .6, 1 + stretch, 1);
-  hero.head.rotation.z = P.onGround ? Math.sin(P.phase * .5) * .06 * Math.min(1, speed / 4) : -P.face * clamp(P.vx * .015, -.15, .15);
-  hero.root.visible = !P.gone && !(P.inv > 0 && Math.floor(t * 20) % 2 === 0);
-  for (const m of hero.mats) {
-    if (P.star > 0) { m.emissive.setHSL((t * 2) % 1, 1, .5); m.emissiveIntensity = P.star < 2 && Math.floor(t * 10) % 2 ? 0 : .8; }
-    else m.emissiveIntensity = 0;
-  }
   if (P.star > 0 && Math.random() < dt * 30) spawnParticle(GEO.spark, confettiMats[(Math.random() * 6) | 0], P.x + rand(-.5, .5), P.y + rand(0, P.h + .3), 0, rand(1, 3), .5, rand(-.3, .5), 2);
   if (P.turbo > 0 && Math.random() < dt * 40) spawnParticle(GEO.spark, confettiMats[1], P.x - .4, P.y + rand(.1, .8), -rand(2, 5), rand(0, 2), .35, 0, 0);
 
@@ -1283,9 +1308,9 @@ function updateVisuals(dt, t) {
   // Kamera
   const aspect = innerWidth / innerHeight;
   const small = innerHeight < 520, touch = document.body.classList.contains('touch');
-  const dist = aspect < 1 ? 13 : small ? 12.5 : 16;
+  const dist = aspect < 1 ? 11.5 : small ? 11 : 13;
   const halfW = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * dist * aspect;
-  let tx = P.x + P.face * 1.5, ty = Math.max(touch ? 5.6 : 6.5, P.y + 1.5);
+  let tx = P.x + P.face * 1.5, ty = Math.max(touch ? 5.3 : 5.6, P.y + 1.2);
   if (state.mode === 'start') { tx = 12 + Math.sin(t * .15) * 6; ty = 7; }
   if (!P.dead) {
     camX += (tx - camX) * Math.min(1, dt * 4);
@@ -1294,8 +1319,77 @@ function updateVisuals(dt, t) {
   camX = clamp(camX, halfW - .5, W - halfW + .5);
   camera.position.set(camX, camY + 1.6, dist);
   camera.lookAt(camX, camY, 0);
+  if (window.__closeup) { const c = window.__closeup; camera.position.set(P.x + c[0], P.y + c[1], c[2]); camera.lookAt(P.x, P.y + .8, 0); }
   sun.position.set(camX + 8, 22, 14); sun.target.position.set(camX, 3, 0);
   decoGroup.userData.sun.position.x = camX * .85 + 18;
+}
+
+// =====================================================================
+// Figur-Animation (prozedural, alle Gelenke weich nachgeführt)
+// =====================================================================
+function animateHero(dt, t) {
+  const J = hero.J, k = Math.min(1, dt * 14);
+  const to = (o, ax, v, kk = k) => { o.rotation[ax] += (v - o.rotation[ax]) * kk; };
+  const s = P.big ? .95 : .7;
+  P.scale += (s - P.scale) * Math.min(1, dt * 10);
+  hero.root.position.set(P.x, P.y, 0);
+  hero.root.scale.setScalar(P.scale);
+  const speed = Math.abs(P.vx), ground = P.onGround || P.win === 2;
+  const bodyRot = P.dead ? 0 : P.face * .95;
+  hero.body.rotation.y += (bodyRot - hero.body.rotation.y) * Math.min(1, dt * 10);
+  let tL = 0, tR = 0, kL = .05, kR = .05, sL = 0, sR = 0, szL = -.12, szR = .12, eL = -.15, eR = -.15;
+  let lean = 0, hipY = .95, headX = 0, headZ = 0, ezL = 0, ezR = 0, posing = false;
+  if (P.dead) {
+    sL = sR = -2.9; szL = -.4; szR = .4; eL = eR = -.3; tL = -.6; tR = .3; kL = kR = 1;
+    hero.root.rotation.z = Math.sin(P.deadT * 10) * .25;
+  } else if (!ground) {
+    hero.root.rotation.z = 0;
+    if (P.vy > 0) { tL = -1.1; kL = 1.5; tR = .3; kR = .5; sL = -2.7; szL = -.3; eL = -.2; sR = .6; eR = -.8; lean = .05; }
+    else { const w = Math.sin(t * 16) * .25; tL = -.35; kL = .6; tR = .15; kR = .4; sL = -.4 + w; sR = -.4 - w; szL = -1.25; szR = 1.25; eL = eR = -.4; }
+  } else {
+    hero.root.rotation.z = 0;
+    const amp = Math.min(1, speed / 2.5), run = clamp((speed - 3.5) / 2.5, 0, 1);
+    P.phase += speed * dt * 3.1;
+    const ph = P.phase, sw = Math.sin(ph);
+    tL = -sw * (.55 + .3 * run) * amp; tR = sw * (.55 + .3 * run) * amp;
+    kL = .06 + amp * (.25 + (1 + .5 * run) * Math.max(0, Math.sin(ph - 1.3))); kR = .06 + amp * (.25 + (1 + .5 * run) * Math.max(0, Math.sin(ph + Math.PI - 1.3)));
+    sL = sw * (.45 + .4 * run) * amp; sR = -sw * (.45 + .4 * run) * amp;
+    eL = eR = -.2 - (.3 + .7 * run) * amp;
+    hipY = .95 - .04 * amp - .05 * run + Math.abs(Math.cos(ph)) * .05 * amp;
+    lean = .08 * amp + .12 * run + (P.turbo > 0 ? .25 : 0);
+    headX = -lean * .6;
+    const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+    if (dir && Math.sign(P.vx) === -dir && speed > 1.5) { lean = -.3; tL = -.5; tR = .4; kL = kR = .3; }
+    if (speed < .3) { // Stehen: atmen, ab und zu Hasenohren wie auf dem Foto
+      const br = Math.sin(t * 2.2);
+      J.torso.scale.y = 1 + br * .012;
+      if (grim.t > 0 && grim.name !== 'normal') {
+        posing = true; sL = sR = -.1; szL = -2.75; szR = 2.75; eL = eR = 0; ezL = .3 + Math.sin(t * 9) * .25; ezR = -.3 - Math.sin(t * 9) * .25; headZ = Math.sin(t * 6) * .1;
+      } else { sL = .05 + br * .03; sR = .05 - br * .03; headZ = Math.sin(t * .9) * .05; }
+    }
+  }
+  if (P.squash > .05 && ground) { hipY -= P.squash * .35; kL += P.squash * 1.5; kR += P.squash * 1.5; tL -= P.squash * .8; tR -= P.squash * .8; }
+  J.hips.position.y += (hipY - J.hips.position.y) * k;
+  to(J.thighL, 'x', tL); to(J.thighR, 'x', tR); to(J.kneeL, 'x', kL); to(J.kneeR, 'x', kR);
+  to(J.ankleL, 'x', -(tL + kL) * .4); to(J.ankleR, 'x', -(tR + kR) * .4);
+  to(J.shoulderL, 'x', sL); to(J.shoulderR, 'x', sR); to(J.shoulderL, 'z', szL); to(J.shoulderR, 'z', szR);
+  to(J.elbowL, 'x', eL); to(J.elbowR, 'x', eR); to(J.elbowL, 'z', ezL); to(J.elbowR, 'z', ezR);
+  hero.body.rotation.y += ((posing ? P.face * .25 : bodyRot) - hero.body.rotation.y) * Math.min(1, dt * 6);
+  to(J.torso, 'x', lean, Math.min(1, dt * 8));
+  // Kopf schaut mehr zur Kamera als der Körper
+  to(J.head, 'y', -hero.body.rotation.y * .62, 1); to(J.head, 'x', headX); to(J.head, 'z', headZ, Math.min(1, dt * 8));
+  P.squash *= Math.pow(.0005, dt);
+  const stretch = clamp(P.vy * .01, -.08, .1);
+  J.head.scale.set(1 - stretch * .4, 1 + stretch, 1);
+  // Haare schwingen nach (Feder)
+  const hT = clamp(speed * .07 + Math.max(0, -P.vy) * .025 - Math.max(0, P.vy) * .01, -.3, .7);
+  hero.hairV += (hT - J.hair.rotation.x) * 90 * dt; hero.hairV *= Math.pow(.02, dt);
+  J.hair.rotation.x += hero.hairV * dt;
+  hero.root.visible = !P.gone && !(P.inv > 0 && Math.floor(t * 20) % 2 === 0);
+  for (const m of hero.mats) {
+    if (P.star > 0) { m.emissive.setHSL((t * 2) % 1, 1, .5); m.emissiveIntensity = P.star < 2 && Math.floor(t * 10) % 2 ? 0 : .7; }
+    else m.emissiveIntensity = 0;
+  }
 }
 
 // =====================================================================
@@ -1505,8 +1599,8 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 // Test-Hook: Spiellogik ohne Rendering vorspulen
-window.__game = { P, state, input, faces: () => Object.entries(faceTex).map(([k, t]) => [k, t.image.toDataURL()]), enemies: () => enemies, items: () => items, get: (x, y) => get(x, y),
-  sim(sec) { for (let i = 0; i < sec / STEP; i++) { updatePlatforms(STEP); updatePlayer(STEP); updateEnemies(STEP); updateItems(STEP); updateVisuals(STEP, clock += STEP); } } };
+window.__game = { P, state, input, hero, faces: () => Object.entries(faceTex).map(([k, t]) => [k, t.image.toDataURL()]), enemies: () => enemies, items: () => items, get: (x, y) => get(x, y),
+  sim(sec) { for (let i = 0, n = Math.round(sec / STEP); i < n; i++) { updatePlatforms(STEP); updatePlayer(STEP); updateEnemies(STEP); updateItems(STEP); updateVisuals(STEP, clock += STEP); } } };
 </script>
 </body>
 </html>
