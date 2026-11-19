@@ -94,6 +94,8 @@
           <button class="btn ghost" id="clearPhoto" title="Foto entfernen">✕</button>
         </div>
         <label class="lbl">Name<input type="text" id="name" maxlength="14" placeholder="Heldin"></label>
+        <label class="btn ghost" for="musicFile" id="musicLbl">🎵 Eigene Musik</label>
+        <input type="file" id="musicFile" accept="audio/*" hidden>
       </div>
     </div>
     <p class="muted">Bild verschieben und zoomen: Augen auf die zwei Punkte, Mund auf den Strich. Dann sitzen die Grimassen richtig. Das Foto bleibt nur in diesem Browser.</p>
@@ -187,7 +189,21 @@ const MEL = [72,76,79,76, 81,79,76,72, 74,77,81,77, 79,-1,79,-1, 72,76,79,84, 83
 const BASS = [48,48,50,48, 48,48,50,55, 53,53,57,53, 55,55,55,59];
 const midi = n => 440 * Math.pow(2, (n - 69) / 12);
 let musicStep = 0, musicNext = 0, musicTimer = null;
+const EMBEDDED_MUSIC = null; // PRIVAT_MUSIK
+let bgAudio = null;
+function kickMusic(restart) { if (!bgAudio || !musicOn) return; if (restart) bgAudio.currentTime = 0; bgAudio.play().catch(() => {}); }
+function setTrack(src) {
+  if (bgAudio) { bgAudio.pause(); bgAudio.removeAttribute('src'); bgAudio.load(); }
+  bgAudio = new Audio(); bgAudio.src = src; bgAudio.loop = true; bgAudio.volume = .55; bgAudio.preload = 'auto';
+}
+if (EMBEDDED_MUSIC) setTrack(EMBEDDED_MUSIC);
 function musicTick() {
+  if (bgAudio) { // eigenes Lied statt Piepsmusik
+    const want = musicOn && state.mode === 'play' && !P.dead;
+    if (want && bgAudio.paused) bgAudio.play().catch(() => {});
+    else if (!want && !bgAudio.paused) bgAudio.pause();
+    return;
+  }
   if (!AC || !musicOn || state.mode !== 'play') return;
   const e = .2;
   if (musicNext < AC.currentTime) musicNext = AC.currentTime + .05;
@@ -1428,7 +1444,7 @@ function startGame() {
   store.set('gh_name', $('name').value.trim());
   $('hName').textContent = heroName();
   exportCrop(); buildFaces();
-  newGame(); state.mode = 'play'; show(null); musicNext = 0;
+  newGame(); state.mode = 'play'; show(null); musicNext = 0; kickMusic(true);
 }
 function showWin() {
   state.mode = 'win';
@@ -1442,14 +1458,14 @@ function pause(on) {
   else if (!on && state.mode === 'pause') { state.mode = 'play'; show(null); }
 }
 $('startBtn').onclick = startGame;
-$('resumeBtn').onclick = () => pause(false);
+$('resumeBtn').onclick = () => { pause(false); kickMusic(); };
 $('menuBtn').onclick = () => { state.mode = 'start'; show('ovStart'); drawCrop(); };
-$('againBtn').onclick = () => { newGame(); state.mode = 'play'; show(null); };
-$('winAgain').onclick = () => { newGame(); state.mode = 'play'; show(null); };
+$('againBtn').onclick = () => { newGame(); state.mode = 'play'; show(null); kickMusic(true); };
+$('winAgain').onclick = () => { newGame(); state.mode = 'play'; show(null); kickMusic(true); };
 $('winMenu').onclick = () => { state.mode = 'start'; show('ovStart'); drawCrop(); };
 $('bPause').onclick = () => pause(state.mode === 'play');
 function toggleMusic() { musicOn = !musicOn; store.set('gh_music', musicOn ? '1' : '0'); $('bMusic').classList.toggle('off', !musicOn); }
-$('bMusic').onclick = () => { initAudio(); toggleMusic(); };
+$('bMusic').onclick = () => { initAudio(); toggleMusic(); kickMusic(); };
 $('bMusic').classList.toggle('off', !musicOn);
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(true); });
 
@@ -1539,6 +1555,12 @@ $('file').onchange = e => {
 };
 $('zoom').oninput = e => { if (!photo) return; crop.s = parseFloat(e.target.value); drawCrop(); };
 $('rot').onclick = () => { if (!photo) return; crop.r = (crop.r + 1) % 4; drawCrop(); };
+$('musicFile').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  setTrack(URL.createObjectURL(f));
+  $('musicLbl').textContent = '🎵 ' + f.name.replace(/\.[^.]+$/, '').slice(0, 22);
+};
+if (EMBEDDED_MUSIC) $('musicLbl').textContent = '🎵 Eigenes Lied aktiv';
 $('clearPhoto').onclick = () => { photo = null; store.del('gh_photo'); store.del('gh_crop'); faceSrc = null; drawCrop(); exportCrop(); buildFaces(); };
 {
   const pts = new Map(); let lastDist = 0;
@@ -1599,7 +1621,7 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 // Test-Hook: Spiellogik ohne Rendering vorspulen
-window.__game = { P, state, input, hero, faces: () => Object.entries(faceTex).map(([k, t]) => [k, t.image.toDataURL()]), enemies: () => enemies, items: () => items, get: (x, y) => get(x, y),
+window.__game = { P, state, input, hero, music: () => bgAudio, faces: () => Object.entries(faceTex).map(([k, t]) => [k, t.image.toDataURL()]), enemies: () => enemies, items: () => items, get: (x, y) => get(x, y),
   sim(sec) { for (let i = 0, n = Math.round(sec / STEP); i < n; i++) { updatePlatforms(STEP); updatePlayer(STEP); updateEnemies(STEP); updateItems(STEP); updateVisuals(STEP, clock += STEP); } } };
 </script>
 </body>
