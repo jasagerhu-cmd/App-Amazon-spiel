@@ -27,3 +27,23 @@ Die Vorschau auf claude.ai kann diesen Modus nicht nutzen (die Plattform sperrt 
 ## Grinse-Invasion (doom.html)
 
 Schneller 3D-Shooter im Retro-Stil (Three.js). `doom.html` im Browser öffnen – Desktop (WASD + Maus) und Touch werden unterstützt.
+
+## Pizza Wolke Arcade – Belag-Alarm (pizza.html)
+
+Match-3-Spiel mit Pizza-Belägen für einen Arcade-Automaten im Laden. `pizza.html` im Browser öffnen, keine Installation, läuft offline (nur die Schriften kommen aus dem Netz, sonst Ersatzschrift).
+
+**Ablauf:** Titelbildschirm mit Scoreboard (Heute / Allzeit) → Name eintragen (Pflicht, 2–12 Zeichen, Bildschirmtastatur oder echte Tastatur) → eine Runde à 60 Sekunden → Ergebnis mit Platzierung. Nach 45 Sekunden ohne Eingabe springt der Automat zurück zum Titel.
+
+**Warum es so schwer ist:** 7 Belagsorten auf 8×8 (wenige Treffer), falscher Tausch kostet 3 Sekunden, keine Tipps, der Ofen verbrennt laufend Stücke (zuerst alle 6,5 s, am Ende alle 2,2 s). Verbrannte Stücke blockieren und lassen sich nur durch einen Treffer direkt daneben oder ein Spezialteil entfernen. Gibt es keinen Zug mehr: neu mischen, −5 Sekunden. Spezialteile geben +1 bzw. +2 Sekunden. Alle Werte stehen oben im Skript in `CFG`.
+
+**Spezialteile:** 4 in einer Reihe = Pizzaroller (räumt Zeile/Spalte), L- oder T-Form = Ofen (3×3), 5 in einer Reihe = Goldene Pizza (mit einem Belag tauschen räumt alle dieser Sorte).
+
+**Musik:** Boom-Bap-Beat (88 BPM, in den letzten 15 Sekunden schneller), komplett im Browser erzeugt, keine Audiodateien. Startet beim ersten Antippen (Browser-Vorgabe). Lautsprecher-Knopf unten links.
+
+**Logo:** Im Spiel ist ein gezeichneter Platzhalter. Das echte Logo als `pizzawolke-logo.png` neben `pizza.html` legen, dann wird es automatisch überall verwendet.
+
+**Scoreboard:** wird nur auf diesem Gerät gespeichert (Browser-Speicher). Ein einfacher Namensfilter blockt gängige Beleidigungen. Verwalten: Logo auf dem Titelbildschirm 4 Sekunden gedrückt halten (oder Strg+Umschalt+A) – einzelne Einträge, heute oder alles löschen.
+
+**Als Automat im Laden (Kiosk):** Tablet oder Mini-PC mit Touchscreen, Chrome im Kiosk-Modus starten, z. B.
+`chrome --kiosk --autoplay-policy=no-user-gesture-required file:///pfad/zu/pizza.html`
+Den Browser-Speicher nicht automatisch löschen lassen, sonst ist das Scoreboard weg.
