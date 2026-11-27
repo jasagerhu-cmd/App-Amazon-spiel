@@ -322,6 +322,8 @@ const CFG = {
   BURN_WARNING: 1.2,          // so lange flackert ein Stück, bevor es verbrennt
   IDLE_RESET: 45,             // Sekunden ohne Eingabe → zurück zum Titel
   NAME_MIN: 2, NAME_MAX: 12,
+  MUSIC_FILE: "musik.mp3",     // eigener Song daneben ablegen; fehlt er, läuft der eingebaute Beat
+  MUSIC_VOLUME: 0.55,
   LOGO_FILE: "pizzawolke-logo.png", // echtes Logo (am besten weiße Wolke mit schwarzer Kontur, transparenter Hintergrund) daneben ablegen
   STAR_STEPS: [1500, 3500, 6000, 9000], // Punkte für 2, 3, 4 und 5 Sterne
 };
@@ -396,8 +398,22 @@ const Sound = (() => {
     [196.00, 246.94, 293.66, 349.23],
   ];
   const ROOTS = [65.41, 51.91, 43.65, 49.00];
+  let song = null, vinylGain = null; // eigener Song (MP3) statt Beat, falls vorhanden
+
+  function trySong() {
+    const src = window.PW_EMBEDDED_MUSIC || CFG.MUSIC_FILE;
+    if (!src) { startMusic(); return; }
+    const a = new Audio(); a.loop = true; a.preload = "auto"; a.volume = CFG.MUSIC_VOLUME; a.muted = muted;
+    let fellBack = false;
+    const fallback = () => { if (fellBack) return; fellBack = true; song = null; startMusic(); };
+    a.addEventListener("error", fallback, { once: true });
+    a.src = src;
+    const pr = a.play();
+    if (pr && pr.then) pr.then(() => { song = a; if (vinylGain) vinylGain.gain.value = 0; }).catch(fallback);
+  }
 
   function init() {
+    if (song && song.paused) song.play().catch(() => {});
     if (ctx) { if (ctx.state === "suspended") ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
@@ -414,9 +430,9 @@ const Sound = (() => {
     // Vinyl-Rauschen
     const vin = ctx.createBufferSource(); vin.buffer = noise; vin.loop = true;
     const vf = ctx.createBiquadFilter(); vf.type = "bandpass"; vf.frequency.value = 2500; vf.Q.value = 0.6;
-    const vg = ctx.createGain(); vg.gain.value = 0.018;
+    const vg = ctx.createGain(); vg.gain.value = 0.018; vinylGain = vg;
     vin.connect(vf); vf.connect(vg); vg.connect(music); vin.start();
-    startMusic();
+    trySong();
   }
   const env = (g, t, a, peak, dec) => { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + dec); };
 
@@ -506,10 +522,15 @@ const Sound = (() => {
       muted = !muted;
       try { localStorage.setItem("pw-muted", muted ? "1" : "0"); } catch (e) {}
       if (master) master.gain.value = muted ? 0 : 0.8;
+      if (song) song.muted = muted;
       return muted;
     },
     get muted() { return muted; },
-    setIntense(on) { intense = on; bpm = on ? 98 : 88; },
+    setIntense(on) {
+      if (intense === on) return;
+      intense = on; bpm = on ? 98 : 88;
+      if (song) song.playbackRate = on ? 1.06 : 1; // Song in der Schlussphase leicht schneller
+    },
     pop(chain) { const f = 520 * Math.pow(1.12, Math.min(chain, 10)); blip("sine", f, f * 1.5, 0.12, 0.32); blip("triangle", f * 2, f * 2.2, 0.06, 0.12); },
     bad() { blip("square", 180, 70, 0.28, 0.18); },
     special() { blip("sawtooth", 260, 1600, 0.32, 0.14); },

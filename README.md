@@ -38,7 +38,7 @@ Match-3-Spiel mit Pizza-Belägen für einen Arcade-Automaten im Laden. Look im P
 
 **Spezialteile:** 4 in einer Reihe = Pizzaroller (räumt Zeile/Spalte), L- oder T-Form = Ofen (3×3), 5 in einer Reihe = Goldenes Blech (mit einem Belag tauschen räumt alle dieser Sorte).
 
-**Musik:** Boom-Bap-Beat (88 BPM, in den letzten 15 Sekunden schneller), komplett im Browser erzeugt, keine Audiodateien. Startet beim ersten Antippen (Browser-Vorgabe). Lautsprecher-Knopf unten links.
+**Musik:** Liegt eine `musik.mp3` neben `pizza.html`, läuft dieser Song in Dauerschleife (in den letzten 15 Sekunden leicht schneller). Fehlt sie, läuft ein eingebauter Boom-Bap-Beat. Die MP3 gehört nicht ins Repo (steht in `.gitignore`). Öffentliche Wiedergabe von fremder Musik im Restaurant braucht eine GEMA-Lizenz. Startet beim ersten Antippen (Browser-Vorgabe). Knopf „TON AN“ unten links.
 
 **Logo:** Im Spiel ist die Wolke nachgezeichnet (wie das Schild im Laden). Das echte Logo als `pizzawolke-logo.png` neben `pizza.html` legen, dann wird es automatisch überall verwendet.
 
