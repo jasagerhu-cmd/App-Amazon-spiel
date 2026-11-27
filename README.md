@@ -30,11 +30,11 @@ Schneller 3D-Shooter im Retro-Stil (Three.js). `doom.html` im Browser öffnen �
 
 ## Pizza Wolke Arcade – Belag-Alarm (pizza.html)
 
-Match-3-Spiel mit Pizza-Belägen für einen Arcade-Automaten im Laden. Look im Pizza-Wolke-CI: Wolken-Logo mit dicker Kontur, rosa Fliesenraum in 3D, Pizzakarton-Illustration, Belags-Blöcke mit Tiefe auf einem gekippten Holzbrett. Beläge: Peperoni, Fior di Latte, Basilikum, Hot Honey, Pink-Lady-Zwiebel, Pilz, Olive. `pizza.html` im Browser öffnen, keine Installation, läuft offline (nur die Schriften kommen aus dem Netz, sonst Ersatzschrift).
+Match-3-Spiel mit Pizza-Belägen für einen Arcade-Automaten im Laden. Look im Pizza-Wolke-CI: Wolken-Logo mit dicker Kontur, rosa Fliesenraum in 3D, Pizzakarton-Illustration, Belags-Blöcke mit Tiefe auf einem gekippten Holzbrett. Spielsteine sind Pizza-Karten mit eigener Randfarbe: Toni Peperoni (rot), Pastrami (orange), Cloudy (blau), MVP (grün), Pink Lady (rosa), Mr. Beef (lila). Liste `TYPES` im Skript. `pizza.html` im Browser öffnen, keine Installation, läuft offline (nur die Schriften kommen aus dem Netz, sonst Ersatzschrift).
 
 **Ablauf:** Titelbildschirm mit Scoreboard (Heute / Allzeit) → Name eintragen (Pflicht, 2–12 Zeichen, Bildschirmtastatur oder echte Tastatur) → eine Runde à 60 Sekunden → Ergebnis mit Platzierung. Nach 45 Sekunden ohne Eingabe springt der Automat zurück zum Titel.
 
-**Warum es so schwer ist:** 7 Belagsorten auf 8×8 (wenige Treffer), falscher Tausch kostet 3 Sekunden, keine Tipps, der Ofen verbrennt laufend Stücke (zuerst alle 6,5 s, am Ende alle 2,2 s). Verbrannte Stücke blockieren und lassen sich nur durch einen Treffer direkt daneben oder ein Spezialteil entfernen. Gibt es keinen Zug mehr: neu mischen, −5 Sekunden. Spezialteile geben +1 bzw. +2 Sekunden. Alle Werte stehen oben im Skript in `CFG`.
+**Warum es so schwer ist:** 6 Pizzasorten auf 8×8 (wenige Treffer), falscher Tausch kostet 3 Sekunden, keine Tipps, der Ofen verbrennt laufend Stücke (zuerst alle 5,5 s, am Ende alle 1,8 s). Verbrannte Stücke blockieren und lassen sich nur durch einen Treffer direkt daneben oder ein Spezialteil entfernen. Gibt es keinen Zug mehr: neu mischen, −5 Sekunden. Spezialteile geben +1 bzw. +2 Sekunden. Alle Werte stehen oben im Skript in `CFG`.
 
 **Spezialteile:** 4 in einer Reihe = Pizzaroller (räumt Zeile/Spalte), L- oder T-Form = Ofen (3×3), 5 in einer Reihe = Goldenes Blech (mit einem Belag tauschen räumt alle dieser Sorte).
 
