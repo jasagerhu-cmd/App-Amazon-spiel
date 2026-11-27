@@ -1311,7 +1311,7 @@ async function endRound() {
   $("overScore").textContent = score.toLocaleString("de-DE");
   $("overRank").textContent = rank === 1 ? "NEUER ALLZEIT-REKORD!" : tRank === 1 ? `TAGESREKORD! · Platz ${rank} allzeit` : `Platz ${tRank} heute · Platz ${rank} allzeit`;
   const stars = 1 + CFG.STAR_STEPS.filter(v => score >= v).length;
-  $("overStars").innerHTML = `<span class="st">${"★".repeat(stars)}${"☆".repeat(5 - stars)}</span> ${stars}.0 · gerade eben · (${all.length} Spiele)`;
+  $("overStars").innerHTML = `<span class="st">${"★".repeat(stars)}${"☆".repeat(5 - stars)}</span> ${stars}.0 · gerade eben · (${all.length} ${all.length === 1 ? "Spiel" : "Spiele"})`;
   $("overStats").textContent = `${stats.moves} Züge · ${stats.wrong} daneben · ${stats.specials} Spezialteile · beste Kaskade ×${stats.maxChain} · ${stats.burnt} angebrannt`;
   renderBoards($("overBoards"), entry.t);
   show("over");
